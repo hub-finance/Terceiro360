@@ -1,0 +1,219 @@
+"""CHECKLIST AUTOMÁTICO DE PROTOCOLO (§23).
+
+O checklist é montado a partir de três origens declaradas — nunca de suposição:
+
+    ATO (o que o próprio ato produz)  +  ESTATUTO  +  REGRA DO RCPJ COMPETENTE
+
+Quando não há regra de RCPJ cadastrada, o checklist sai assim mesmo, mas
+sinalizando que a parte cartorária não foi conferida (§46).
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from app.core.enums import StatusParametro, TipoDocumento, TipoEvento
+from app.engines.validacao.contexto import ContextoValidacao
+
+
+@dataclass
+class ItemChecklist:
+    codigo: str
+    descricao: str
+    obrigatorio: bool = True
+    origem: str = "SISTEMA"          # ATO|ESTATUTO|RCPJ|LEI
+    fundamento: str | None = None
+    status: str = "PENDENTE"          # PENDENTE|OK|NAO_APLICAVEL
+    observacao: str | None = None
+
+
+@dataclass
+class Checklist:
+    tipo_evento: str
+    itens: list[ItemChecklist] = field(default_factory=list)
+    avisos: list[str] = field(default_factory=list)
+
+    @property
+    def completo(self) -> bool:
+        return all(i.status != "PENDENTE" for i in self.itens if i.obrigatorio)
+
+    @property
+    def pendentes(self) -> list[ItemChecklist]:
+        return [i for i in self.itens if i.obrigatorio and i.status == "PENDENTE"]
+
+    def to_dict(self) -> dict:
+        return {
+            "tipo_evento": self.tipo_evento,
+            "completo": self.completo,
+            "total": len(self.itens),
+            "pendentes": len(self.pendentes),
+            "avisos": self.avisos,
+            "itens": [i.__dict__ for i in self.itens],
+        }
+
+
+# Documentos que cada ato produz por natureza. Base do checklist antes de
+# qualquer exigência cartorária.
+DOCUMENTOS_DO_ATO: dict[str, tuple[tuple[str, str, bool], ...]] = {
+    TipoEvento.ELEICAO_DIRETORIA.value: (
+        (TipoDocumento.EDITAL_CONVOCACAO.value, "Edital de convocação", True),
+        (TipoDocumento.ATA.value, "Ata da assembleia de eleição", True),
+        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença", True),
+        (TipoDocumento.TERMO_POSSE.value, "Termos de posse dos eleitos", True),
+        (TipoDocumento.RELACAO_DIRETORIA.value, "Relação da diretoria eleita", True),
+        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento ao RCPJ", True),
+        (TipoDocumento.BOLETIM_VOTACAO.value, "Boletim de votação", False),
+    ),
+    TipoEvento.REFORMA_ESTATUTARIA.value: (
+        (TipoDocumento.EDITAL_CONVOCACAO.value, "Edital de convocação com a matéria na ordem do dia", True),
+        (TipoDocumento.ATA.value, "Ata da assembleia de reforma", True),
+        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença", True),
+        (TipoDocumento.ESTATUTO_CONSOLIDADO.value, "Estatuto consolidado", True),
+        (TipoDocumento.QUADRO_COMPARATIVO.value, "Quadro comparativo (redação anterior x aprovada)", False),
+        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento ao RCPJ", True),
+    ),
+    TipoEvento.APROVACAO_CONTAS.value: (
+        (TipoDocumento.EDITAL_CONVOCACAO.value, "Edital de convocação", True),
+        (TipoDocumento.ATA.value, "Ata da assembleia de aprovação de contas", True),
+        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença", True),
+        (TipoDocumento.DEMONSTRACOES_CONTABEIS.value, "Demonstrações do exercício", True),
+        (TipoDocumento.PARECER_CONSELHO_FISCAL.value, "Parecer do Conselho Fiscal", False),
+    ),
+    TipoEvento.ALTERACAO_ENDERECO.value: (
+        (TipoDocumento.ATA.value, "Ata da deliberação de alteração de endereço", True),
+        (TipoDocumento.ESTATUTO_CONSOLIDADO.value, "Estatuto consolidado com o novo endereço", False),
+        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento de averbação ao RCPJ", True),
+    ),
+    TipoEvento.RENUNCIA.value: (
+        (TipoDocumento.TERMO_RENUNCIA.value, "Termo de renúncia assinado", True),
+        (TipoDocumento.ATA.value, "Ata que tomou conhecimento da renúncia", True),
+        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento de averbação ao RCPJ", True),
+    ),
+    TipoEvento.DESTITUICAO.value: (
+        (TipoDocumento.EDITAL_CONVOCACAO.value, "Edital com a destituição na ordem do dia", True),
+        (TipoDocumento.ATA.value, "Ata da assembleia de destituição", True),
+        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença", True),
+        (TipoDocumento.TERMO_DESTITUICAO.value, "Termo de destituição", True),
+        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento ao RCPJ", True),
+    ),
+    TipoEvento.CONSTITUICAO.value: (
+        (TipoDocumento.ATA.value, "Ata da assembleia de fundação", True),
+        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença dos fundadores", True),
+        (TipoDocumento.ESTATUTO_CONSOLIDADO.value, "Estatuto social aprovado", True),
+        (TipoDocumento.TERMO_POSSE.value, "Termos de posse da primeira diretoria", True),
+        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento de registro ao RCPJ", True),
+    ),
+}
+
+DOCUMENTOS_PADRAO = (
+    (TipoDocumento.ATA.value, "Ata do ato", True),
+    (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento ao RCPJ", True),
+)
+
+
+def montar(ctx: ContextoValidacao) -> Checklist:
+    checklist = Checklist(tipo_evento=ctx.tipo_evento)
+    vistos: set[str] = set()
+
+    def adicionar(codigo, descricao, obrigatorio, origem, fundamento=None, observacao=None):
+        if codigo in vistos:
+            return
+        vistos.add(codigo)
+        checklist.itens.append(
+            ItemChecklist(
+                codigo=codigo,
+                descricao=descricao,
+                obrigatorio=obrigatorio,
+                origem=origem,
+                fundamento=fundamento,
+                status="OK" if codigo in ctx.documentos_anexados else "PENDENTE",
+                observacao=observacao,
+            )
+        )
+
+    # 1. O que o ato produz.
+    for codigo, descricao, obrigatorio in DOCUMENTOS_DO_ATO.get(ctx.tipo_evento, DOCUMENTOS_PADRAO):
+        adicionar(codigo, descricao, obrigatorio, "ATO")
+
+    # 2. Estatuto vigente sempre acompanha o protocolo.
+    adicionar(
+        "ESTATUTO_VIGENTE", "Cópia do estatuto vigente registrado", True, "ATO",
+        fundamento="Documento de instrução usual do protocolo registral",
+    )
+
+    # 3. Exigências estatutárias específicas.
+    parecer = ctx.param("CONSELHO_FISCAL_PARECER_OBRIGATORIO")
+    if parecer.utilizavel and parecer.valor in (True, "true", "SIM", 1) and ctx.tipo_evento in (
+        TipoEvento.APROVACAO_CONTAS.value, TipoEvento.PRESTACAO_CONTAS.value
+    ):
+        adicionar(
+            TipoDocumento.PARECER_CONSELHO_FISCAL.value,
+            "Parecer do Conselho Fiscal (exigido pelo estatuto)", True, "ESTATUTO",
+            fundamento=str(parecer.fundamento) if parecer.fundamento else "Estatuto Social",
+        )
+    elif parecer.status is StatusParametro.NAO_INFORMADO and ctx.tipo_evento in (
+        TipoEvento.APROVACAO_CONTAS.value, TipoEvento.PRESTACAO_CONTAS.value
+    ):
+        checklist.avisos.append(
+            "Não está cadastrado se o estatuto exige parecer do Conselho Fiscal para aprovar "
+            "as contas. Confirme antes de protocolar."
+        )
+
+    # 4. Exigências do RCPJ competente.
+    if ctx.rcpj is None:
+        checklist.avisos.append(
+            "RCPJ competente não definido: as exigências cartorárias não foram conferidas. "
+            "Este checklist cobre apenas os documentos produzidos pelo próprio ato."
+        )
+        return checklist
+
+    regra = ctx.rcpj.regra_evento
+    if regra is None:
+        checklist.avisos.append(
+            f"Não há exigências cadastradas no {ctx.rcpj.nome} para este ato. "
+            f"Confirme a lista junto ao cartório antes do protocolo."
+        )
+        return checklist
+
+    for doc in regra.documentos_exigidos:
+        adicionar(
+            doc.get("codigo", doc.get("descricao", "DOC")),
+            doc.get("descricao", "Documento exigido pelo cartório"),
+            doc.get("obrigatorio", True),
+            "RCPJ",
+            fundamento=f"{ctx.rcpj.nome}"
+                       + (f" — conferido em {regra.data_ultima_verificacao:%d/%m/%Y}"
+                          if regra.data_ultima_verificacao else ""),
+            observacao=doc.get("observacao"),
+        )
+
+    exige_firma = (
+        regra.exige_reconhecimento_firma
+        if regra.exige_reconhecimento_firma is not None
+        else ctx.rcpj.exige_reconhecimento_firma
+    )
+    if exige_firma:
+        adicionar("RECONHECIMENTO_FIRMA", "Reconhecimento de firma nas assinaturas exigidas",
+                  True, "RCPJ", fundamento=ctx.rcpj.nome)
+    elif exige_firma is None:
+        checklist.avisos.append("Reconhecimento de firma: exigência não conferida neste cartório.")
+
+    exige_advogado = (
+        regra.exige_visto_advogado
+        if regra.exige_visto_advogado is not None
+        else ctx.rcpj.exige_visto_advogado
+    )
+    if exige_advogado:
+        adicionar("VISTO_ADVOGADO", "Visto de advogado com número de inscrição na OAB",
+                  True, "RCPJ", fundamento=ctx.rcpj.nome)
+    elif exige_advogado is None:
+        checklist.avisos.append("Visto de advogado: exigência não conferida neste cartório.")
+
+    if regra.vias and regra.vias > 1:
+        checklist.avisos.append(f"Protocolo em {regra.vias} vias, conforme cadastro do cartório.")
+
+    if ctx.rcpj.regras_desatualizadas:
+        checklist.avisos.append(
+            "As exigências deste cartório estão fora do prazo de reconferência. "
+            "Trate o checklist como provisório."
+        )
+    return checklist

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Banco e armazenamento locais
+*.db
+*.sqlite3
+backend/storage/
+
+# Ambiente
+.env
+.env.local
+
+# Node
+node_modules/
+.next/
+dist/
+
+# Editor / SO
+.DS_Store
+.idea/
+.vscode/
