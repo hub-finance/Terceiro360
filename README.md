@@ -40,21 +40,31 @@ e modelos que dependiam da redação antiga.
 
 ## Rodando
 
-```bash
-cd backend
-uv venv .venv && uv pip install --python .venv/bin/python -e ".[dev]"
-cp .env.example .env                      # ajuste T360_DATABASE_URL
+Com Docker — sobe o PostgreSQL, aplica as migrações e inicia a API:
 
-.venv/bin/python -m app.seeds --demo      # cria tabelas e carrega dados
-.venv/bin/python -m uvicorn app.main:app --reload
+```bash
+docker compose up -d
+docker compose run --rm api python -m app.seeds --demo
+```
+
+Sem Docker:
+
+```bash
+make instalar
+cp backend/.env.example backend/.env      # ajuste T360_DATABASE_URL
+make migrar && make carga demo=1
+make rodar
 ```
 
 Documentação da API em `http://localhost:8000/docs`.
 Acesso de demonstração: `admin@demo.terceiro360.local` / `terceiro360`.
 
 ```bash
-.venv/bin/python -m pytest tests -q       # 63 testes
+make teste        # 63 testes em SQLite, ~4s
+make teste-pg     # 66 testes em PostgreSQL — rode antes de publicar
 ```
+
+Detalhes de banco e migrações em [`docs/banco-e-migracoes.md`](docs/banco-e-migracoes.md).
 
 ## Arquitetura
 

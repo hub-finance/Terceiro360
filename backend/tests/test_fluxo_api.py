@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -22,8 +23,23 @@ HOJE = dt.date.today()
 
 @pytest.fixture(scope="module")
 def cliente_api(tmp_path_factory):
-    caminho = tmp_path_factory.mktemp("banco") / "teste.db"
-    engine = create_engine(f"sqlite+pysqlite:///{caminho}", connect_args={"check_same_thread": False})
+    """Roda contra SQLite por padrão; contra PostgreSQL quando indicado.
+
+    O SQLite mantém a suíte rápida no dia a dia. Antes de publicar, a mesma
+    suíte roda no banco de produção — é onde aparecem as diferenças que
+    importam: JSONB, UUID nativo e o comportamento das constraints.
+
+        T360_TEST_DATABASE_URL=postgresql+psycopg://... pytest
+    """
+    url = os.getenv("T360_TEST_DATABASE_URL")
+    if url:
+        engine = create_engine(url)
+        Base.metadata.drop_all(engine)
+    else:
+        caminho = tmp_path_factory.mktemp("banco") / "teste.db"
+        engine = create_engine(
+            f"sqlite+pysqlite:///{caminho}", connect_args={"check_same_thread": False}
+        )
     Sessao = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(engine)
 

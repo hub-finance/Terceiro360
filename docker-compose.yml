@@ -1,0 +1,48 @@
+# Ambiente de desenvolvimento do TERCEIRO360.
+#
+#   docker compose up -d          sobe banco e API
+#   docker compose run --rm api alembic upgrade head
+#   docker compose run --rm api python -m app.seeds --demo
+
+services:
+  banco:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: terceiro360
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-terceiro360}
+      POSTGRES_DB: terceiro360
+      # Locale pt_BR para ordenação correta de nomes com acento.
+      LANG: pt_BR.UTF-8
+    ports:
+      - "5432:5432"
+    volumes:
+      - dados_postgres:/var/lib/postgresql/data
+    healthcheck:
+      # A API só sobe quando o banco aceita conexão de verdade.
+      test: ["CMD-SHELL", "pg_isready -U terceiro360 -d terceiro360"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    depends_on:
+      banco:
+        condition: service_healthy
+    environment:
+      T360_DATABASE_URL: postgresql+psycopg://terceiro360:${POSTGRES_PASSWORD:-terceiro360}@banco:5432/terceiro360
+      T360_SECRET_KEY: ${T360_SECRET_KEY:-troque-esta-chave-em-producao}
+      T360_ENVIRONMENT: ${T360_ENVIRONMENT:-development}
+      T360_DEBUG: ${T360_DEBUG:-true}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - documentos:/app/storage
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  dados_postgres:
+  documentos:
