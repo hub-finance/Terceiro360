@@ -16,46 +16,27 @@ from typing import Iterable
 from app.core.enums import OrigemDado, Semaforo, StatusParametro, TipoEvento
 from app.engines.base import Achado, Fundamento
 from app.engines.conformidade.catalogo import CATALOGO, obrigatorios_para
+from app.engines.conformidade.matriz import MATRIZ, EspecieAssembleia, ExigeReforma, ato
 from app.engines.conformidade.quorum import BaseQuorum, interpretar_quorum
 from app.engines.validacao.contexto import ContextoValidacao
 from app.engines.validacao.registro import check
 
-# Atos que dependem de assembleia e, portanto, de convocação e quórum.
-EVENTOS_ASSEMBLEARES = (
-    TipoEvento.ASSEMBLEIA_ORDINARIA.value,
-    TipoEvento.ASSEMBLEIA_EXTRAORDINARIA.value,
-    TipoEvento.ELEICAO_DIRETORIA.value,
-    TipoEvento.REELEICAO_DIRETORIA.value,
-    TipoEvento.DESTITUICAO.value,
-    TipoEvento.REFORMA_ESTATUTARIA.value,
-    TipoEvento.ALTERACAO_FINALIDADE.value,
-    TipoEvento.ALTERACAO_DENOMINACAO.value,
-    TipoEvento.ALTERACAO_ENDERECO.value,
-    TipoEvento.ALTERACAO_ORGAOS.value,
-    TipoEvento.ALTERACAO_MANDATO.value,
-    TipoEvento.ALTERACAO_QUORUM.value,
-    TipoEvento.APROVACAO_CONTAS.value,
-    TipoEvento.PRESTACAO_CONTAS.value,
-    TipoEvento.DISSOLUCAO.value,
-)
+# As listas abaixo derivam da matriz de atos: acrescentar um ato novo lá o faz
+# entrar automaticamente nos checks certos, sem editar este arquivo (§55).
+EVENTOS_ASSEMBLEARES = tuple(t for t, a in MATRIZ.items() if a.assemblear)
 
 # Atos de competência privativa da assembleia geral, em reunião especialmente
 # convocada para esse fim (Código Civil, art. 59 e parágrafo único).
-EVENTOS_COMPETENCIA_PRIVATIVA = (
-    TipoEvento.DESTITUICAO.value,
-    TipoEvento.REFORMA_ESTATUTARIA.value,
-    TipoEvento.ALTERACAO_FINALIDADE.value,
-    TipoEvento.ALTERACAO_DENOMINACAO.value,
-    TipoEvento.ALTERACAO_ORGAOS.value,
-    TipoEvento.ALTERACAO_MANDATO.value,
-    TipoEvento.ALTERACAO_QUORUM.value,
+EVENTOS_COMPETENCIA_PRIVATIVA = tuple(
+    t for t, a in MATRIZ.items() if a.exige_convocacao_especifica
 )
 
-EVENTOS_QUE_EXIGEM_ESTATUTO = EVENTOS_ASSEMBLEARES + (
-    TipoEvento.POSSE_DIRETORIA.value,
-    TipoEvento.RENUNCIA.value,
-    TipoEvento.SUBSTITUICAO.value,
-    TipoEvento.VACANCIA.value,
+EVENTOS_QUE_EXIGEM_ESTATUTO = tuple(
+    t for t, a in MATRIZ.items()
+    if a.assemblear or a.tipo in (
+        TipoEvento.POSSE_DIRETORIA.value, TipoEvento.RENUNCIA.value,
+        TipoEvento.SUBSTITUICAO.value, TipoEvento.VACANCIA.value,
+    )
 )
 
 _FUND_ESTATUTO = Fundamento(
@@ -342,15 +323,7 @@ def competencia_orgao(ctx: ContextoValidacao) -> Iterable[Achado]:
         )
         return
 
-    termos = {
-        TipoEvento.REFORMA_ESTATUTARIA.value: ("estatut", "reforma"),
-        TipoEvento.ALTERACAO_FINALIDADE.value: ("finalidade", "estatut"),
-        TipoEvento.ALTERACAO_DENOMINACAO.value: ("denomina", "nome", "estatut"),
-        TipoEvento.ALTERACAO_ORGAOS.value: ("órgão", "orgao", "estatut"),
-        TipoEvento.ALTERACAO_MANDATO.value: ("mandato", "estatut"),
-        TipoEvento.ALTERACAO_QUORUM.value: ("quórum", "quorum", "estatut"),
-        TipoEvento.DESTITUICAO.value: ("destitui",),
-    }.get(ctx.tipo_evento, ())
+    termos = _TERMOS_ORDEM_DO_DIA.get(ctx.tipo_evento, ())
     texto = " ".join(str(i) for i in ordem_do_dia).lower()
     if termos and not any(t in texto for t in termos):
         yield Achado(
@@ -367,6 +340,21 @@ def competencia_orgao(ctx: ContextoValidacao) -> Iterable[Achado]:
 
 
 # --------------------------------------------------------------- Quórum
+
+
+# Palavras que precisam aparecer na ordem do dia para que a matéria esteja
+# efetivamente convocada. Deliberar sobre assunto ausente do edital é vício
+# recorrente de anulação.
+_TERMOS_ORDEM_DO_DIA: dict[str, tuple[str, ...]] = {
+    TipoEvento.REFORMA_ESTATUTARIA.value: ("estatut", "reforma"),
+    TipoEvento.ALTERACAO_FINALIDADE.value: ("finalidade", "estatut"),
+    TipoEvento.ALTERACAO_DENOMINACAO.value: ("denomina", "nome", "estatut"),
+    TipoEvento.ALTERACAO_ORGAOS.value: ("órgão", "orgao", "estatut"),
+    TipoEvento.ALTERACAO_MANDATO.value: ("mandato", "estatut"),
+    TipoEvento.ALTERACAO_QUORUM.value: ("quórum", "quorum", "estatut"),
+    TipoEvento.DESTITUICAO.value: ("destitui",),
+    TipoEvento.DISSOLUCAO.value: ("dissolu", "extin"),
+}
 
 
 @check("QUORUM_INSTALACAO", "Quórum de instalação", eventos=EVENTOS_ASSEMBLEARES)
@@ -439,16 +427,9 @@ def quorum_deliberacao(ctx: ContextoValidacao) -> Iterable[Achado]:
     if votos is None:
         return
 
-    chave = {
-        TipoEvento.REFORMA_ESTATUTARIA.value: "QUORUM_REFORMA_ESTATUTARIA",
-        TipoEvento.ALTERACAO_FINALIDADE.value: "QUORUM_REFORMA_ESTATUTARIA",
-        TipoEvento.ALTERACAO_DENOMINACAO.value: "QUORUM_REFORMA_ESTATUTARIA",
-        TipoEvento.ALTERACAO_ORGAOS.value: "QUORUM_REFORMA_ESTATUTARIA",
-        TipoEvento.ALTERACAO_MANDATO.value: "QUORUM_REFORMA_ESTATUTARIA",
-        TipoEvento.ALTERACAO_QUORUM.value: "QUORUM_REFORMA_ESTATUTARIA",
-        TipoEvento.DESTITUICAO.value: "QUORUM_DESTITUICAO",
-        TipoEvento.DISSOLUCAO.value: "QUORUM_DISSOLUCAO",
-    }.get(ctx.tipo_evento, "QUORUM_APROVACAO_GERAL")
+    chave = MATRIZ[ctx.tipo_evento].chave_quorum if ctx.tipo_evento in MATRIZ else None
+    if chave is None:
+        return
 
     p = ctx.param(chave)
     if not p.utilizavel:
@@ -471,9 +452,71 @@ def quorum_deliberacao(ctx: ContextoValidacao) -> Iterable[Achado]:
                      f"e foram informados {votos} votos favoráveis.",
             fundamentos=([p.fundamento] if p.fundamento else [])
                         + (_fund_legal(ctx, "CC_2002", "art. 59")
-                           if chave in ("QUORUM_REFORMA_ESTATUTARIA", "QUORUM_DESTITUICAO") else []),
+                           if chave in ("QUORUM_REFORMA_ESTATUTARIA", "QUORUM_DESTITUICAO")
+                           else []),
             campo="votos_favor",
             dados={"minimo": minimo, "votos": int(votos), "base": base},
+        )
+
+
+@check("EXIGE_REFORMA_ESTATUTARIA", "A alteração exige reforma do estatuto?",
+       eventos=(TipoEvento.ALTERACAO_ENDERECO.value,), fundamentos=("CC_2002",))
+def exige_reforma_estatutaria(ctx: ContextoValidacao) -> Iterable[Achado]:
+    """§39 — 'essa alteração exige reforma estatutária?'
+
+    Para a maioria dos atos a matriz responde sozinha. O endereço é o caso em
+    que depende do texto do estatuto: se ele fixa o endereço completo, mudar de
+    rua já é reforma; se fixa apenas o município, a mudança dentro dele se
+    resolve por averbação. Quem sabe isso é quem leu o estatuto — por isso a
+    pergunta existe, e por isso ela muda o quórum exigido.
+    """
+    consta = ctx.dado("consta_do_estatuto")
+    endereco_novo = ctx.dado("endereco_novo") or ""
+    municipio_mudou = bool(
+        ctx.entidade.municipio
+        and endereco_novo
+        and ctx.entidade.municipio.lower() not in str(endereco_novo).lower()
+    )
+
+    if consta is None:
+        yield Achado(
+            codigo="ENDERECO_NO_ESTATUTO_NAO_INFORMADO",
+            severidade=Semaforo.PENDENCIA,
+            titulo="VALIDAÇÃO NECESSÁRIA: o endereço consta do estatuto?",
+            mensagem="Se o estatuto traz o endereço completo da sede, a mudança é "
+                     "reforma estatutária, com o quórum e a convocação próprios. Se "
+                     "traz apenas o município, resolve-se por averbação.",
+            fundamentos=_fund_legal(ctx, "CC_2002", "art. 54"),
+            campo="consta_do_estatuto",
+        )
+        return
+
+    if consta in (True, "true", "SIM", 1):
+        p = ctx.param("QUORUM_REFORMA_ESTATUTARIA")
+        yield Achado(
+            codigo="ALTERACAO_ENDERECO_EXIGE_REFORMA",
+            severidade=Semaforo.PENDENCIA,
+            titulo="Esta alteração é reforma estatutária",
+            mensagem="O endereço consta do estatuto, então a mudança altera o próprio "
+                     "estatuto: exige assembleia especialmente convocada para esse fim e "
+                     "o quórum de reforma"
+                     + (f" ({p.valor})." if p.utilizavel else ", que não está cadastrado."),
+            fundamentos=([p.fundamento] if p.fundamento else [])
+                        + _fund_legal(ctx, "CC_2002", "art. 59"),
+            sugestao="Registre o ato como Reforma Estatutária, e não como simples "
+                     "alteração de endereço.",
+        )
+
+    if municipio_mudou:
+        yield Achado(
+            codigo="MUDANCA_DE_MUNICIPIO",
+            severidade=Semaforo.PENDENCIA,
+            titulo="A sede muda de município",
+            mensagem="Mudança de município altera a sede prevista no estatuto e pode "
+                     "alterar o RCPJ competente para os próximos atos.",
+            fundamentos=_fund_legal(ctx, "LRP_1973", "art. 114"),
+            sugestao="Confirme qual cartório passa a ser competente e atualize o "
+                     "cadastro da entidade.",
         )
 
 

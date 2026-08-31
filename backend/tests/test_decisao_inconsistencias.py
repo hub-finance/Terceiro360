@@ -27,7 +27,7 @@ def test_pergunta_quem_pode_convocar_le_o_estatuto(montar_contexto):
 def test_pergunta_documentos_necessarios_lista_o_checklist(montar_contexto):
     ctx = montar_contexto("ELEICAO_DIRETORIA", data_ato=dt.date(2026, 5, 20))
     r = responder(ctx, "documentos_necessarios")
-    assert "Ata da assembleia de eleição" in r.justificativa
+    assert "Ata: Eleição de diretoria" in r.justificativa
     assert "Requerimento ao RCPJ" in r.justificativa
 
 

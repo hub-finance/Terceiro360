@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.enums import CategoriaDocumento, StatusDocumento, TipoDocumento
+from app.engines.conformidade.matriz import EspecieAssembleia, ato
 from app.engines.templates.motor import renderizar
 from app.engines.validacao.contexto import ContextoValidacao
 from app.modules.documentos.models import Documento, DocumentoVersao, Template
@@ -101,7 +102,7 @@ def montar_variaveis(db: Session, evento: Evento, ctx: ContextoValidacao) -> dic
         variaveis[chave.upper()] = valor
 
     # §53 — o que o sistema consegue deduzir, ele não pergunta.
-    variaveis.setdefault("TIPO_ASSEMBLEIA", _tipo_assembleia(evento))
+    variaveis.setdefault("TIPO_ASSEMBLEIA", _tipo_assembleia(evento, ctx))
     if mandato:
         representante = mandato.ocupante("PRESIDENTE") or (
             mandato.membros[0] if mandato.membros else None
@@ -117,27 +118,36 @@ def montar_variaveis(db: Session, evento: Evento, ctx: ContextoValidacao) -> dic
     return {k: v for k, v in variaveis.items() if v is not None}
 
 
-# Um ato de eleição, reforma ou destituição só acontece em assembleia; qual
-# delas depende do tipo do ato, e não precisa ser perguntado de novo.
-_ASSEMBLEIA_POR_ATO = {
-    "ASSEMBLEIA_ORDINARIA": "Ordinária",
-    "APROVACAO_CONTAS": "Ordinária",
-    "PRESTACAO_CONTAS": "Ordinária",
+_ROTULO_ESPECIE = {
+    EspecieAssembleia.ORDINARIA: "Ordinária",
+    EspecieAssembleia.EXTRAORDINARIA: "Extraordinária",
 }
 
 
-def _tipo_assembleia(evento: Evento) -> str | None:
+def _tipo_assembleia(evento: Evento, ctx: ContextoValidacao) -> str | None:
+    """Ordinária ou extraordinária — sem arbitrar o que é do estatuto.
+
+    A matriz diz o que a lei fixa. Onde ela devolve a escolha ao estatuto
+    (o caso da eleição, que pode ocorrer dentro da assembleia ordinária), o
+    sistema pergunta ou deixa a variável em branco — nunca inventa a espécie,
+    porque a espécie errada na ata é vício que o cartório enxerga.
+    """
     informado = (evento.dados or {}).get("tipo_assembleia")
     if informado:
         return informado
-    tipo = str(evento.tipo)
-    if tipo in _ASSEMBLEIA_POR_ATO:
-        return _ASSEMBLEIA_POR_ATO[tipo]
-    if tipo in ("ELEICAO_DIRETORIA", "REELEICAO_DIRETORIA", "REFORMA_ESTATUTARIA",
-                "DESTITUICAO", "ASSEMBLEIA_EXTRAORDINARIA", "ALTERACAO_FINALIDADE",
-                "ALTERACAO_DENOMINACAO", "ALTERACAO_ORGAOS", "ALTERACAO_MANDATO",
-                "ALTERACAO_QUORUM", "DISSOLUCAO"):
-        return "Extraordinária"
+
+    definicao = ato(str(evento.tipo))
+    if definicao is None:
+        return None
+    if definicao.especie_assembleia in _ROTULO_ESPECIE:
+        return _ROTULO_ESPECIE[definicao.especie_assembleia]
+    if definicao.especie_assembleia == EspecieAssembleia.NAO_ASSEMBLEAR:
+        return None
+
+    # CONFORME_ESTATUTO: só responde se o parâmetro estiver confirmado.
+    orgao = ctx.param("MANDATO_ORGAO_ELEITOR")
+    if orgao.utilizavel and "ordin" in str(orgao.valor).lower():
+        return "Ordinária"
     return None
 
 

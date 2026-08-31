@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from app.core.enums import Semaforo, StatusParametro
 from app.engines.base import Achado, Fundamento
+from app.engines.conformidade.matriz import EspecieAssembleia, ExigeReforma, ato
 from app.engines.validacao.contexto import ContextoValidacao
 from app.engines.validacao.motor import validar
 from app.engines.validacao.registro import REGISTRO
@@ -50,7 +51,11 @@ PERGUNTAS: dict[str, tuple[str, tuple[str, ...]]] = {
     "existe_quorum": ("Existe quórum?", ("QUORUM_INSTALACAO", "QUORUM_DELIBERACAO")),
     "quem_pode_convocar": ("Quem pode convocar?", ("CONVOCACAO_LEGITIMIDADE",)),
     "mandato_vigente": ("O mandato está vigente?", ("MANDATO_VIGENTE",)),
-    "exige_reforma_estatutaria": ("Essa alteração exige reforma estatutária?", ("COMPETENCIA_ORGAO",)),
+    "exige_reforma_estatutaria": (
+        "Essa alteração exige reforma estatutária?",
+        ("COMPETENCIA_ORGAO", "EXIGE_REFORMA_ESTATUTARIA"),
+    ),
+    "especie_de_assembleia": ("É assembleia ordinária ou extraordinária?", ()),
     "existe_pendencia": ("Existe alguma pendência?", ()),
     "documentos_necessarios": ("Quais documentos precisam ser gerados?", ()),
 }
@@ -104,6 +109,9 @@ def _codigos_derivados(codigos: tuple[str, ...]) -> set[str]:
 
 
 _ACHADOS_POR_CHECK: dict[str, tuple[str, ...]] = {
+    "EXIGE_REFORMA_ESTATUTARIA": ("ENDERECO_NO_ESTATUTO_NAO_INFORMADO",
+                                  "ALTERACAO_ENDERECO_EXIGE_REFORMA",
+                                  "MUDANCA_DE_MUNICIPIO"),
     "ESTATUTO_VIGENTE": ("ESTATUTO_NAO_CADASTRADO", "ESTATUTO_SEM_VERSAO_VIGENTE",
                          "ESTATUTO_SEM_REGISTRO"),
     "PARAMETROS_ESTATUTARIOS": ("PARAMETRO_AUSENTE", "PARAMETRO_NAO_CONFIRMADO",
@@ -118,8 +126,49 @@ _ACHADOS_POR_CHECK: dict[str, tuple[str, ...]] = {
 }
 
 
+# Como a matriz responde cada classificação, em português.
+_REFORMA = {
+    ExigeReforma.SEMPRE:
+        "Sim. {titulo} altera conteúdo obrigatório do estatuto, então o ato é, "
+        "necessariamente, reforma estatutária: assembleia especialmente convocada "
+        "para esse fim e o quórum de reforma previsto no estatuto.",
+    ExigeReforma.NUNCA:
+        "Não. {titulo} não altera o texto do estatuto; o ato vai a registro por "
+        "averbação.",
+    ExigeReforma.DEPENDE_DO_ESTATUTO:
+        "Depende do que o estatuto diz. {titulo} só será reforma estatutária se o "
+        "próprio estatuto tratar do ponto que está sendo alterado.",
+    ExigeReforma.NAO_APLICAVEL:
+        "Não se aplica: {titulo} não é alteração de estatuto existente.",
+}
+
+_ESPECIE = {
+    EspecieAssembleia.ORDINARIA: "Ordinária.",
+    EspecieAssembleia.EXTRAORDINARIA: "Extraordinária.",
+    EspecieAssembleia.NAO_ASSEMBLEAR: "Nenhuma: este ato não se realiza em assembleia.",
+    EspecieAssembleia.CONFORME_ESTATUTO:
+        "Depende do estatuto. Este ato pode ocorrer tanto em assembleia ordinária "
+        "quanto em extraordinária — quem define é o estatuto da entidade, e o "
+        "sistema não arbitra essa escolha.",
+}
+
+
 def _justificar(pergunta: str, severidade: Semaforo, achados: list[Achado],
                 ctx: ContextoValidacao) -> str:
+    definicao = ato(ctx.tipo_evento)
+
+    if pergunta == "exige_reforma_estatutaria" and definicao:
+        base = _REFORMA[definicao.exige_reforma_estatutaria].format(titulo=definicao.titulo)
+        detalhes = " ".join(f"{a.titulo}: {a.mensagem}" for a in achados)
+        return f"{base} {definicao.nota or ''} {detalhes}".strip()
+
+    if pergunta == "especie_de_assembleia" and definicao:
+        resposta = _ESPECIE[definicao.especie_assembleia]
+        if definicao.exige_convocacao_especifica:
+            resposta += (" A reunião precisa ser especialmente convocada para esta "
+                         "matéria, que deve constar da ordem do dia.")
+        return resposta
+
     if pergunta == "quem_pode_convocar":
         p = ctx.param("CONVOCACAO_LEGITIMADOS")
         if p.status is StatusParametro.CONFIRMADO:

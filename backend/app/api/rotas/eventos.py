@@ -20,6 +20,8 @@ from app.modules.entidades.models import Entidade
 from app.modules.juridico.models import Evento
 from app.modules.juridico.questionarios import campos_faltantes, questionario_de
 from app.modules.juridico.servicos import montar_contexto, registrar_validacao
+from app.engines.conformidade.catalogo import CATALOGO
+from app.engines.conformidade.matriz import ato, documentos_do_ato, por_categoria
 from app.modules.juridico import atos
 
 router = APIRouter(tags=["Eventos"])
@@ -44,54 +46,34 @@ class EventoOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# Documentos gerados por ato, na ordem do fluxo do §40.
-DOCUMENTOS_POR_ATO: dict[str, tuple[TipoDocumento, ...]] = {
-    TipoEvento.ELEICAO_DIRETORIA.value: (
-        TipoDocumento.EDITAL_CONVOCACAO, TipoDocumento.LISTA_PRESENCA, TipoDocumento.ATA,
-        TipoDocumento.TERMO_POSSE, TipoDocumento.RELACAO_DIRETORIA,
-        TipoDocumento.REQUERIMENTO_RCPJ,
-    ),
-    TipoEvento.REFORMA_ESTATUTARIA.value: (
-        TipoDocumento.EDITAL_CONVOCACAO, TipoDocumento.LISTA_PRESENCA, TipoDocumento.ATA,
-        TipoDocumento.QUADRO_COMPARATIVO, TipoDocumento.REQUERIMENTO_RCPJ,
-    ),
-    TipoEvento.APROVACAO_CONTAS.value: (
-        TipoDocumento.EDITAL_CONVOCACAO, TipoDocumento.LISTA_PRESENCA, TipoDocumento.ATA,
-    ),
-    TipoEvento.ALTERACAO_ENDERECO.value: (
-        TipoDocumento.ATA, TipoDocumento.REQUERIMENTO_RCPJ,
-    ),
-    TipoEvento.RENUNCIA.value: (
-        TipoDocumento.TERMO_RENUNCIA, TipoDocumento.REQUERIMENTO_RCPJ,
-    ),
-}
-
-
 @router.get("/catalogo/eventos")
 def catalogo_eventos(_: Sessao = Depends(sessao_atual)):
-    """§10 — 'qual ato você deseja realizar?'"""
-    categorias = {
-        "CONSTITUIÇÃO": [TipoEvento.CONSTITUICAO, TipoEvento.APROVACAO_ESTATUTO,
-                         TipoEvento.REGISTRO_INICIAL],
-        "DIRETORIA": [TipoEvento.ELEICAO_DIRETORIA, TipoEvento.REELEICAO_DIRETORIA,
-                      TipoEvento.POSSE_DIRETORIA, TipoEvento.RENUNCIA, TipoEvento.DESTITUICAO,
-                      TipoEvento.SUBSTITUICAO, TipoEvento.VACANCIA, TipoEvento.ALTERACAO_CARGOS],
-        "ESTATUTO": [TipoEvento.REFORMA_ESTATUTARIA, TipoEvento.ALTERACAO_FINALIDADE,
-                     TipoEvento.ALTERACAO_ENDERECO, TipoEvento.ALTERACAO_DENOMINACAO,
-                     TipoEvento.ALTERACAO_ORGAOS, TipoEvento.ALTERACAO_MANDATO,
-                     TipoEvento.ALTERACAO_QUORUM],
-        "ASSEMBLEIAS": [TipoEvento.ASSEMBLEIA_ORDINARIA, TipoEvento.ASSEMBLEIA_EXTRAORDINARIA],
-        "PRESTAÇÃO DE CONTAS": [TipoEvento.APROVACAO_CONTAS, TipoEvento.PRESTACAO_CONTAS,
-                                TipoEvento.PARECER_CONSELHO_FISCAL],
-        "ENCERRAMENTO": [TipoEvento.DISSOLUCAO, TipoEvento.LIQUIDACAO,
-                         TipoEvento.DESTINACAO_PATRIMONIAL, TipoEvento.ENCERRAMENTO],
-    }
+    """§10 — 'qual ato você deseja realizar?', com a classificação de cada um."""
     return {
-        categoria: [
-            {"tipo": t.value, "titulo": questionario_de(t.value).titulo}
-            for t in tipos
-        ]
-        for categoria, tipos in categorias.items()
+        categoria: [a.to_dict() for a in atos]
+        for categoria, atos in por_categoria().items()
+    }
+
+
+@router.get("/catalogo/eventos/{tipo}")
+def detalhe_do_ato(tipo: TipoEvento, _: Sessao = Depends(sessao_atual)):
+    """Tudo que o painel de geração precisa saber sobre um ato."""
+    definicao = ato(tipo.value)
+    if definicao is None:
+        raise HTTPException(404, "Ato não catalogado.")
+    return {
+        **definicao.to_dict(),
+        "questionario": questionario_de(tipo.value).to_dict(),
+        "parametros": [
+            {
+                "chave": chave,
+                "rotulo": CATALOGO[chave].rotulo,
+                "pergunta": CATALOGO[chave].pergunta_simples,
+                "nota": CATALOGO[chave].nota,
+            }
+            for chave in definicao.parametros_relevantes
+            if chave in CATALOGO
+        ],
     }
 
 
@@ -228,7 +210,8 @@ def gerar_documentos(
         )
 
     gerados, sem_modelo = [], []
-    for tipo in DOCUMENTOS_POR_ATO.get(str(evento.tipo), (TipoDocumento.ATA,)):
+    for codigo in documentos_do_ato(str(evento.tipo)):
+        tipo = TipoDocumento(codigo)
         resultado_geracao = gerar_documento(db, evento, ctx, tipo, sessao.usuario.id)
         if resultado_geracao is None:
             sem_modelo.append(tipo.value)

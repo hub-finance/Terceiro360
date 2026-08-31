@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.core.enums import StatusParametro, TipoDocumento, TipoEvento
+from app.engines.conformidade.matriz import ato, documentos_do_ato
 from app.engines.validacao.contexto import ContextoValidacao
 
 
@@ -55,63 +56,49 @@ class Checklist:
         }
 
 
-# Documentos que cada ato produz por natureza. Base do checklist antes de
-# qualquer exigência cartorária.
-DOCUMENTOS_DO_ATO: dict[str, tuple[tuple[str, str, bool], ...]] = {
-    TipoEvento.ELEICAO_DIRETORIA.value: (
-        (TipoDocumento.EDITAL_CONVOCACAO.value, "Edital de convocação", True),
-        (TipoDocumento.ATA.value, "Ata da assembleia de eleição", True),
-        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença", True),
-        (TipoDocumento.TERMO_POSSE.value, "Termos de posse dos eleitos", True),
-        (TipoDocumento.RELACAO_DIRETORIA.value, "Relação da diretoria eleita", True),
-        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento ao RCPJ", True),
-        (TipoDocumento.BOLETIM_VOTACAO.value, "Boletim de votação", False),
-    ),
-    TipoEvento.REFORMA_ESTATUTARIA.value: (
-        (TipoDocumento.EDITAL_CONVOCACAO.value, "Edital de convocação com a matéria na ordem do dia", True),
-        (TipoDocumento.ATA.value, "Ata da assembleia de reforma", True),
-        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença", True),
-        (TipoDocumento.ESTATUTO_CONSOLIDADO.value, "Estatuto consolidado", True),
-        (TipoDocumento.QUADRO_COMPARATIVO.value, "Quadro comparativo (redação anterior x aprovada)", False),
-        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento ao RCPJ", True),
-    ),
-    TipoEvento.APROVACAO_CONTAS.value: (
-        (TipoDocumento.EDITAL_CONVOCACAO.value, "Edital de convocação", True),
-        (TipoDocumento.ATA.value, "Ata da assembleia de aprovação de contas", True),
-        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença", True),
-        (TipoDocumento.DEMONSTRACOES_CONTABEIS.value, "Demonstrações do exercício", True),
-        (TipoDocumento.PARECER_CONSELHO_FISCAL.value, "Parecer do Conselho Fiscal", False),
-    ),
-    TipoEvento.ALTERACAO_ENDERECO.value: (
-        (TipoDocumento.ATA.value, "Ata da deliberação de alteração de endereço", True),
-        (TipoDocumento.ESTATUTO_CONSOLIDADO.value, "Estatuto consolidado com o novo endereço", False),
-        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento de averbação ao RCPJ", True),
-    ),
-    TipoEvento.RENUNCIA.value: (
-        (TipoDocumento.TERMO_RENUNCIA.value, "Termo de renúncia assinado", True),
-        (TipoDocumento.ATA.value, "Ata que tomou conhecimento da renúncia", True),
-        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento de averbação ao RCPJ", True),
-    ),
-    TipoEvento.DESTITUICAO.value: (
-        (TipoDocumento.EDITAL_CONVOCACAO.value, "Edital com a destituição na ordem do dia", True),
-        (TipoDocumento.ATA.value, "Ata da assembleia de destituição", True),
-        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença", True),
-        (TipoDocumento.TERMO_DESTITUICAO.value, "Termo de destituição", True),
-        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento ao RCPJ", True),
-    ),
-    TipoEvento.CONSTITUICAO.value: (
-        (TipoDocumento.ATA.value, "Ata da assembleia de fundação", True),
-        (TipoDocumento.LISTA_PRESENCA.value, "Lista de presença dos fundadores", True),
-        (TipoDocumento.ESTATUTO_CONSOLIDADO.value, "Estatuto social aprovado", True),
-        (TipoDocumento.TERMO_POSSE.value, "Termos de posse da primeira diretoria", True),
-        (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento de registro ao RCPJ", True),
-    ),
+# O que cada ato produz vem da matriz de atos: uma declaração só, lida por
+# todo o sistema (§55).
+DESCRICOES = {
+    TipoDocumento.EDITAL_CONVOCACAO.value: "Edital de convocação",
+    TipoDocumento.AVISO_CONVOCACAO.value: "Aviso de convocação",
+    TipoDocumento.ATA.value: "Ata",
+    TipoDocumento.LISTA_PRESENCA.value: "Lista de presença",
+    TipoDocumento.TERMO_POSSE.value: "Termos de posse",
+    TipoDocumento.TERMO_RENUNCIA.value: "Termo de renúncia",
+    TipoDocumento.TERMO_DESTITUICAO.value: "Termo de destituição",
+    TipoDocumento.RELACAO_DIRETORIA.value: "Relação da diretoria",
+    TipoDocumento.ESTATUTO_CONSOLIDADO.value: "Estatuto consolidado",
+    TipoDocumento.QUADRO_COMPARATIVO.value: "Quadro comparativo (redação anterior x aprovada)",
+    TipoDocumento.REQUERIMENTO_RCPJ.value: "Requerimento ao RCPJ",
+    TipoDocumento.RELACAO_DOCUMENTOS.value: "Relação de documentos",
+    TipoDocumento.CAPA_PROTOCOLO.value: "Capa de protocolo",
+    TipoDocumento.DEMONSTRACOES_CONTABEIS.value: "Demonstrações do exercício",
+    TipoDocumento.PARECER_CONSELHO_FISCAL.value: "Parecer do Conselho Fiscal",
+    TipoDocumento.BOLETIM_VOTACAO.value: "Boletim de votação",
 }
 
-DOCUMENTOS_PADRAO = (
-    (TipoDocumento.ATA.value, "Ata do ato", True),
-    (TipoDocumento.REQUERIMENTO_RCPJ.value, "Requerimento ao RCPJ", True),
-)
+# Documentos que instruem o ato mas não são obrigatórios em todo cartório.
+OPCIONAIS = {
+    TipoDocumento.QUADRO_COMPARATIVO.value,
+    TipoDocumento.BOLETIM_VOTACAO.value,
+    TipoDocumento.PARECER_CONSELHO_FISCAL.value,
+}
+
+# Documentos cujo nome só faz sentido junto do ato: "Ata" não diz nada,
+# "Ata: Eleição de diretoria" diz. O checklist é lido por quem vai ao cartório.
+QUALIFICADOS_PELO_ATO = {
+    TipoDocumento.ATA.value,
+    TipoDocumento.EDITAL_CONVOCACAO.value,
+    TipoDocumento.REQUERIMENTO_RCPJ.value,
+}
+
+
+def descricao_documento(codigo: str, tipo_evento: str) -> str:
+    base = DESCRICOES.get(codigo, codigo.replace("_", " ").capitalize())
+    definicao = ato(tipo_evento)
+    if definicao and codigo in QUALIFICADOS_PELO_ATO:
+        return f"{base}: {definicao.titulo}"
+    return base
 
 
 def montar(ctx: ContextoValidacao) -> Checklist:
@@ -146,9 +133,14 @@ def montar(ctx: ContextoValidacao) -> Checklist:
         vistos[codigo] = item
         checklist.itens.append(item)
 
-    # 1. O que o ato produz.
-    for codigo, descricao, obrigatorio in DOCUMENTOS_DO_ATO.get(ctx.tipo_evento, DOCUMENTOS_PADRAO):
-        adicionar(codigo, descricao, obrigatorio, "ATO")
+    # 1. O que o ato produz, conforme a matriz.
+    for codigo in documentos_do_ato(ctx.tipo_evento):
+        adicionar(
+            codigo,
+            descricao_documento(codigo, ctx.tipo_evento),
+            codigo not in OPCIONAIS,
+            "ATO",
+        )
 
     # 2. Estatuto vigente sempre acompanha o protocolo.
     adicionar(
