@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────────────────
+   TERCEIRO360 — sistema visual
+
+   O produto é institucional e jurídico: a tela precisa transmitir sobriedade
+   e deixar a informação crítica saltar. Por isso a base é neutra e quente
+   (papel), a marca é um azul-petróleo sóbrio, e a cor forte fica reservada
+   ao semáforo — que é o que o usuário precisa enxergar de longe.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Superfícies */
+  --color-papel: #faf9f7;
+  --color-superficie: #ffffff;
+  --color-superficie-2: #f4f2ee;
+  --color-borda: #e2ded7;
+  --color-borda-forte: #cdc7bd;
+
+  /* Texto */
+  --color-tinta: #1a1d21;
+  --color-tinta-2: #4a5058;
+  --color-tinta-3: #767d86;
+
+  /* Marca — azul-petróleo institucional */
+  --color-marca: #1c4a5e;
+  --color-marca-forte: #143845;
+  --color-marca-clara: #e8eff2;
+  --color-marca-contorno: #b9d0d9;
+
+  /* Semáforo (§13). Contraste conferido sobre papel e sobre superfície. */
+  --color-apto: #1a7f4b;
+  --color-apto-fundo: #e7f4ec;
+  --color-apto-contorno: #a8d6bd;
+
+  --color-pendencia: #a35a06;
+  --color-pendencia-fundo: #fdf3e3;
+  --color-pendencia-contorno: #e8c894;
+
+  --color-bloqueado: #ab2b28;
+  --color-bloqueado-fundo: #fcecea;
+  --color-bloqueado-contorno: #edb5b1;
+
+  /* Prioridades da central de pendências (§43) */
+  --color-urgente: #ab2b28;
+  --color-alta: #c2650f;
+  --color-media: #a35a06;
+  --color-baixa: #4a5058;
+
+  --radius-cartao: 0.625rem;
+  --shadow-cartao: 0 1px 2px rgb(26 29 33 / 0.05), 0 1px 3px rgb(26 29 33 / 0.04);
+  --shadow-elevado: 0 4px 12px rgb(26 29 33 / 0.08), 0 2px 4px rgb(26 29 33 / 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --color-papel: #13161a;
+    --color-superficie: #1a1e23;
+    --color-superficie-2: #22272d;
+    --color-borda: #2e343b;
+    --color-borda-forte: #414852;
+
+    --color-tinta: #edeef0;
+    --color-tinta-2: #b3b9c1;
+    --color-tinta-3: #848c96;
+
+    --color-marca: #7fb3c7;
+    --color-marca-forte: #a5cddc;
+    --color-marca-clara: #1a2e37;
+    --color-marca-contorno: #2f4b57;
+
+    --color-apto: #5bc98d;
+    --color-apto-fundo: #13291e;
+    --color-apto-contorno: #2c5741;
+
+    --color-pendencia: #e0a458;
+    --color-pendencia-fundo: #2b2114;
+    --color-pendencia-contorno: #5a4526;
+
+    --color-bloqueado: #f08a84;
+    --color-bloqueado-fundo: #2c1817;
+    --color-bloqueado-contorno: #5c302e;
+
+    --color-urgente: #f08a84;
+    --color-alta: #e5a06a;
+    --color-media: #e0a458;
+    --color-baixa: #b3b9c1;
+
+    --shadow-cartao: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-elevado: 0 4px 14px rgb(0 0 0 / 0.4);
+  }
+}
+
+:root[data-tema="escuro"] {
+  --color-papel: #13161a;
+  --color-superficie: #1a1e23;
+  --color-superficie-2: #22272d;
+  --color-borda: #2e343b;
+  --color-borda-forte: #414852;
+  --color-tinta: #edeef0;
+  --color-tinta-2: #b3b9c1;
+  --color-tinta-3: #848c96;
+  --color-marca: #7fb3c7;
+  --color-marca-forte: #a5cddc;
+  --color-marca-clara: #1a2e37;
+  --color-marca-contorno: #2f4b57;
+  --color-apto: #5bc98d;
+  --color-apto-fundo: #13291e;
+  --color-apto-contorno: #2c5741;
+  --color-pendencia: #e0a458;
+  --color-pendencia-fundo: #2b2114;
+  --color-pendencia-contorno: #5a4526;
+  --color-bloqueado: #f08a84;
+  --color-bloqueado-fundo: #2c1817;
+  --color-bloqueado-contorno: #5c302e;
+  --color-urgente: #f08a84;
+  --color-alta: #e5a06a;
+  --color-media: #e0a458;
+  --color-baixa: #b3b9c1;
+}
+
+* {
+  border-color: var(--color-borda);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--color-papel);
+  color: var(--color-tinta);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco visível é requisito de acessibilidade, não enfeite. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-marca);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Lacuna num documento gerado: precisa gritar na revisão (§46). */
+mark.lacuna {
+  background: var(--color-bloqueado-fundo);
+  color: var(--color-bloqueado);
+  border: 1px dashed var(--color-bloqueado-contorno);
+  border-radius: 3px;
+  padding: 0 0.25rem;
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

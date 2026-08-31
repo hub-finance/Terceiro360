@@ -26,3 +26,9 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/next-env.d.ts
+frontend/tsconfig.tsbuildinfo
