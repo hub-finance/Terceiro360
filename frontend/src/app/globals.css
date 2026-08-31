@@ -33,23 +33,30 @@
   --color-marca-clara: #e8eff2;
   --color-marca-contorno: #b9d0d9;
 
-  /* Semáforo (§13). Contraste conferido sobre papel e sobre superfície. */
-  --color-apto: #1a7f4b;
+  /* Semáforo (§13).
+     Valores escolhidos rodando o validador de paleta, não a olho. Verde,
+     âmbar e vermelho é a tríade que o domínio exige — mas ela é irredutível
+     para deuteranopia e protanopia: nenhuma combinação separa verde de âmbar
+     para quem não distingue essas faixas. Por isso a cor aqui NUNCA é o canal
+     principal: cada estado tem forma própria (ver componente Farol) e texto.
+     Estes valores são os que passam no piso de visão normal (ΔE ≥ 15) e no
+     contraste contra a superfície. */
+  --color-apto: #0f7a49;
   --color-apto-fundo: #e7f4ec;
   --color-apto-contorno: #a8d6bd;
 
-  --color-pendencia: #a35a06;
+  --color-pendencia: #9c7400;
   --color-pendencia-fundo: #fdf3e3;
   --color-pendencia-contorno: #e8c894;
 
-  --color-bloqueado: #ab2b28;
+  --color-bloqueado: #b3202b;
   --color-bloqueado-fundo: #fcecea;
   --color-bloqueado-contorno: #edb5b1;
 
   /* Prioridades da central de pendências (§43) */
-  --color-urgente: #ab2b28;
+  --color-urgente: #b3202b;
   --color-alta: #c2650f;
-  --color-media: #a35a06;
+  --color-media: #9c7400;
   --color-baixa: #4a5058;
 
   --radius-cartao: 0.625rem;
@@ -74,21 +81,21 @@
     --color-marca-clara: #1a2e37;
     --color-marca-contorno: #2f4b57;
 
-    --color-apto: #5bc98d;
+    --color-apto: #4fc086;
     --color-apto-fundo: #13291e;
     --color-apto-contorno: #2c5741;
 
-    --color-pendencia: #e0a458;
+    --color-pendencia: #d6b93c;
     --color-pendencia-fundo: #2b2114;
     --color-pendencia-contorno: #5a4526;
 
-    --color-bloqueado: #f08a84;
+    --color-bloqueado: #ee6f88;
     --color-bloqueado-fundo: #2c1817;
     --color-bloqueado-contorno: #5c302e;
 
-    --color-urgente: #f08a84;
-    --color-alta: #e5a06a;
-    --color-media: #e0a458;
+    --color-urgente: #ee6f88;
+    --color-alta: #e29a5c;
+    --color-media: #d6b93c;
     --color-baixa: #b3b9c1;
 
     --shadow-cartao: 0 1px 2px rgb(0 0 0 / 0.3);
@@ -109,18 +116,18 @@
   --color-marca-forte: #a5cddc;
   --color-marca-clara: #1a2e37;
   --color-marca-contorno: #2f4b57;
-  --color-apto: #5bc98d;
+  --color-apto: #4fc086;
   --color-apto-fundo: #13291e;
   --color-apto-contorno: #2c5741;
-  --color-pendencia: #e0a458;
+  --color-pendencia: #d6b93c;
   --color-pendencia-fundo: #2b2114;
   --color-pendencia-contorno: #5a4526;
-  --color-bloqueado: #f08a84;
+  --color-bloqueado: #ee6f88;
   --color-bloqueado-fundo: #2c1817;
   --color-bloqueado-contorno: #5c302e;
-  --color-urgente: #f08a84;
-  --color-alta: #e5a06a;
-  --color-media: #e0a458;
+  --color-urgente: #ee6f88;
+  --color-alta: #e29a5c;
+  --color-media: #d6b93c;
   --color-baixa: #b3b9c1;
 }
 

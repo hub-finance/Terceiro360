@@ -20,7 +20,7 @@ export default async function LayoutPainel({ children }: { children: React.React
 
   return (
     <div className="flex min-h-dvh">
-      <MenuLateral entidadeId={null} entidades={entidades} usuario={usuario} />
+      <MenuLateral entidades={entidades} usuario={usuario} />
       <main className="min-w-0 flex-1">{children}</main>
     </div>
   );

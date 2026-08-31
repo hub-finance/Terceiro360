@@ -21,8 +21,8 @@ const SECOES: { titulo: string; itens: { rotulo: string; href: string; pronto: b
   {
     titulo: "Jurídico",
     itens: [
-      { rotulo: "Estatuto", href: "/estatuto", pronto: false },
-      { rotulo: "Atos", href: "/atos", pronto: false },
+      { rotulo: "Estatuto", href: "/estatuto", pronto: true },
+      { rotulo: "Atos", href: "/atos", pronto: true },
       { rotulo: "Diretoria", href: "/diretoria", pronto: false },
       { rotulo: "Associados", href: "/associados", pronto: false },
     ],
@@ -39,23 +39,22 @@ const SECOES: { titulo: string; itens: { rotulo: string; href: string; pronto: b
     titulo: "Conformidade",
     itens: [
       { rotulo: "Governança", href: "/governanca", pronto: false },
-      { rotulo: "Central de Fontes", href: "/fontes", pronto: false },
+      { rotulo: "Central de Fontes", href: "/fontes", pronto: true },
       { rotulo: "IA jurídica", href: "/ia", pronto: false },
     ],
   },
 ];
 
 export function MenuLateral({
-  entidadeId,
   entidades,
   usuario,
 }: {
-  entidadeId: string | null;
   entidades: { id: string; razao_social: string }[];
   usuario: { nome: string; email: string; registro_profissional: string | null };
 }) {
   const caminho = usePathname();
   const [aberto, definirAberto] = useState(false);
+  const entidadeId = caminho.match(/^\/entidades\/([0-9a-f-]{36})/)?.[1] ?? null;
   const base = entidadeId ? `/entidades/${entidadeId}` : "";
 
   return (

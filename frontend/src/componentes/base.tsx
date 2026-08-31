@@ -68,17 +68,49 @@ const SEMAFORO: Record<Semaforo, { rotulo: string; cor: string; fundo: string; c
   },
 };
 
-/** O disco do semáforo. A cor nunca vai sozinha: sempre acompanha texto,
- *  porque cor isolada exclui quem não a distingue. */
-export function Farol({ estado, tamanho = 10 }: { estado: Semaforo; tamanho?: number }) {
+/** O farol do semáforo.
+ *
+ *  A cor aqui é o canal *secundário*. Verde, âmbar e vermelho não se separam
+ *  para quem tem deuteranopia ou protanopia — rodamos o validador e não existe
+ *  tríade que resolva isso. Então cada estado tem forma própria: círculo com
+ *  visto, losango com exclamação, octógono com xis. Quem não distingue as
+ *  cores lê a forma; quem distingue lê as duas.
+ */
+export function Farol({ estado, tamanho = 14 }: { estado: Semaforo; tamanho?: number }) {
   const { cor, rotulo } = SEMAFORO[estado];
+  const comum = { width: tamanho, height: tamanho, viewBox: "0 0 16 16", role: "img" as const };
+  const traco = {
+    stroke: "var(--color-superficie)",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    fill: "none",
+  };
+
+  if (estado === "APTO") {
+    return (
+      <svg {...comum} aria-label={rotulo} className="shrink-0">
+        <circle cx="8" cy="8" r="8" fill={cor} />
+        <path d="M4.5 8.3l2.4 2.4 4.6-5" {...traco} />
+      </svg>
+    );
+  }
+
+  if (estado === "PENDENCIA") {
+    return (
+      <svg {...comum} aria-label={rotulo} className="shrink-0">
+        <path d="M8 0l8 8-8 8-8-8z" fill={cor} />
+        <path d="M8 4.2v4.4" {...traco} />
+        <circle cx="8" cy="11.6" r="1.15" fill="var(--color-superficie)" />
+      </svg>
+    );
+  }
+
   return (
-    <span
-      aria-label={rotulo}
-      role="img"
-      className="inline-block shrink-0 rounded-full"
-      style={{ width: tamanho, height: tamanho, background: cor }}
-    />
+    <svg {...comum} aria-label={rotulo} className="shrink-0">
+      <path d="M5 0h6l5 5v6l-5 5H5l-5-5V5z" fill={cor} />
+      <path d="M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2" {...traco} />
+    </svg>
   );
 }
 
@@ -95,7 +127,7 @@ export function SeloSemaforo({
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.75rem] font-semibold ${className}`}
       style={{ color: s.cor, background: s.fundo, borderColor: s.contorno }}
     >
-      <Farol estado={estado} tamanho={7} />
+      <Farol estado={estado} tamanho={12} />
       {texto ?? s.rotulo}
     </span>
   );
