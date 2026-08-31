@@ -7,6 +7,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.tempo import agora
 from app.core.enums import SituacaoAssociado, SituacaoMembro, StatusEvento
 from app.engines.conformidade.base_normativa import BaseNormativaDB
 from app.engines.conformidade.resolucao import ParametroEstatutario, ResolvedorParametros
@@ -254,7 +255,7 @@ def montar_contexto(db: Session, evento: Evento) -> ContextoValidacao:
 
 def registrar_validacao(db: Session, evento: Evento, resultado) -> Evento:
     evento.semaforo = resultado.semaforo
-    evento.validado_em = dt.datetime.utcnow()
+    evento.validado_em = agora()
     evento.resultado_validacao = resultado.to_dict()
     if evento.status is StatusEvento.RASCUNHO:
         evento.status = StatusEvento.EM_VALIDACAO

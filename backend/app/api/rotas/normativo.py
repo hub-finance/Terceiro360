@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import Sessao, exigir, sessao_atual
+from app.core.tempo import agora
 from app.core.enums import (
     Jurisdicao,
     OrigemDeteccao,
@@ -187,7 +188,7 @@ def publicar_versao_inicial(
         hash_conteudo=impressao_digital(dados.texto_referencia),
         origem_captura=OrigemDeteccao.MANUAL,
         curado_por_id=sessao.usuario.id,
-        curado_em=dt.datetime.utcnow(),
+        curado_em=agora(),
         registro_profissional_curador=sessao.usuario.registro_profissional,
     )
     db.add(versao)
@@ -221,7 +222,7 @@ def listar_monitoramentos(
     _: Sessao = Depends(sessao_atual),
     db: Session = Depends(get_db),
 ):
-    agora = dt.datetime.utcnow()
+    momento = agora()
     from app.engines.normativo.motor import MotorAtualizacaoNormativa
 
     return [
@@ -235,7 +236,7 @@ def listar_monitoramentos(
                 m.ultima_verificacao, m.periodicidade_dias
             ).isoformat(),
             "situacao": MotorAtualizacaoNormativa.situacao_da_vigilancia(
-                m.ultima_verificacao, m.periodicidade_dias, agora
+                m.ultima_verificacao, m.periodicidade_dias, momento
             ),
             "ultimo_erro": m.ultimo_erro, "ativo": m.ativo,
         }

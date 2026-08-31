@@ -104,3 +104,53 @@ def test_vigilancia_reporta_atraso():
     assert m.situacao_da_vigilancia(dt.datetime(2026, 8, 10), 30, agora) == "EM_DIA"
     assert m.situacao_da_vigilancia(dt.datetime(2026, 7, 1), 30, agora) == "VENCIDA"
     assert m.situacao_da_vigilancia(dt.datetime(2026, 1, 1), 30, agora) == "ATRASADA"
+
+
+# ─────────────────────────────── Instantes com e sem fuso (bug de produção)
+
+
+def test_vigilancia_compara_instantes_de_fusos_diferentes():
+    """O PostgreSQL devolve instante com fuso; o SQLite, sem.
+
+    Misturar os dois levanta "can't subtract offset-naive and offset-aware
+    datetimes" — erro que só aparece no banco de produção, que é o pior lugar
+    para descobri-lo. A normalização precisa acontecer no motor.
+    """
+    m = MotorAtualizacaoNormativa
+    agora_com_fuso = dt.datetime(2026, 8, 31, tzinfo=dt.timezone.utc)
+    agora_sem_fuso = dt.datetime(2026, 8, 31)
+
+    sem_fuso = dt.datetime(2026, 7, 1)
+    com_fuso = dt.datetime(2026, 7, 1, tzinfo=dt.timezone.utc)
+
+    # As quatro combinações precisam funcionar e chegar à mesma conclusão:
+    # o fuso do instante não pode mudar o diagnóstico da vigília.
+    resultados = {
+        m.situacao_da_vigilancia(sem_fuso, 30, agora_com_fuso),
+        m.situacao_da_vigilancia(com_fuso, 30, agora_sem_fuso),
+        m.situacao_da_vigilancia(com_fuso, 30, agora_com_fuso),
+        m.situacao_da_vigilancia(sem_fuso, 30, agora_sem_fuso),
+    }
+    assert len(resultados) == 1, f"o fuso alterou o diagnóstico: {resultados}"
+    assert resultados.pop() == "ATRASADA"
+
+    # E o caso de borda: dentro da periodicidade, também sem divergir.
+    recente_sem_fuso = dt.datetime(2026, 8, 20)
+    recente_com_fuso = dt.datetime(2026, 8, 20, tzinfo=dt.timezone.utc)
+    assert (
+        m.situacao_da_vigilancia(recente_sem_fuso, 30, agora_com_fuso)
+        == m.situacao_da_vigilancia(recente_com_fuso, 30, agora_sem_fuso)
+        == "EM_DIA"
+    )
+
+    assert m.proxima_verificacao(com_fuso, 30) == dt.date(2026, 7, 31)
+    assert m.proxima_verificacao(sem_fuso, 30) == dt.date(2026, 7, 31)
+
+
+def test_helpers_de_tempo_normalizam():
+    from app.core.tempo import agora, dias_entre, garantir_utc
+
+    assert agora().tzinfo is not None, "o instante gravado precisa ter fuso"
+    assert garantir_utc(dt.datetime(2026, 1, 1)).tzinfo is dt.timezone.utc
+    assert garantir_utc(None) is None
+    assert dias_entre(dt.datetime(2026, 1, 1), dt.datetime(2026, 1, 11, tzinfo=dt.timezone.utc)) == 10

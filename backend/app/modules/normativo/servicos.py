@@ -7,6 +7,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.tempo import agora
 from app.core.enums import (
     AlvoImpacto,
     OrigemDeteccao,
@@ -61,7 +62,7 @@ def verificar_monitoramento(
         coleta=coleta,
     )
 
-    monitoramento.ultima_verificacao = dt.datetime.utcnow()
+    monitoramento.ultima_verificacao = agora()
     monitoramento.ultimo_erro = deteccao.erro
     if deteccao.hash_novo:
         monitoramento.ultimo_hash = deteccao.hash_novo
@@ -88,7 +89,7 @@ def verificar_monitoramento(
         url_evidencia=monitoramento.url,
         hash_anterior=deteccao.hash_anterior,
         hash_novo=deteccao.hash_novo,
-        detectado_em=dt.datetime.utcnow(),
+        detectado_em=agora(),
     )
     db.add(atualizacao)
     db.flush()
@@ -110,7 +111,7 @@ def registrar_atualizacao_manual(
         titulo=titulo,
         resumo=resumo,
         url_evidencia=url_evidencia,
-        detectado_em=dt.datetime.utcnow(),
+        detectado_em=agora(),
         analisado_por_id=usuario_id,
     )
     db.add(atualizacao)
@@ -169,7 +170,7 @@ def publicar_atualizacao(
         hash_conteudo=resultado.versao_nova.hash_conteudo,
         origem_captura=atualizacao.origem,
         curado_por_id=curador.id,
-        curado_em=dt.datetime.utcnow(),
+        curado_em=agora(),
         registro_profissional_curador=curador.registro_profissional,
     )
     db.add(nova)
@@ -179,7 +180,7 @@ def publicar_atualizacao(
         db.add(Dispositivo(versao_id=nova.id, identificacao=identificacao))
 
     atualizacao.situacao = SituacaoAtualizacao.PUBLICADA
-    atualizacao.publicado_em = dt.datetime.utcnow()
+    atualizacao.publicado_em = agora()
     atualizacao.fonte_versao_gerada_id = nova.id
     atualizacao.analisado_por_id = curador.id
     db.add(atualizacao)
@@ -204,19 +205,19 @@ def tratar_impacto(
 ) -> ImpactoNormativo:
     impacto.status = "DISPENSADO" if dispensado else "TRATADO"
     impacto.tratado_por_id = usuario_id
-    impacto.tratado_em = dt.datetime.utcnow()
+    impacto.tratado_em = agora()
     db.add(impacto)
     db.commit()
     db.refresh(impacto)
     return impacto
 
 
-def vigilancias_vencidas(db: Session, agora: dt.datetime | None = None) -> list[dict]:
-    agora = agora or dt.datetime.utcnow()
+def vigilancias_vencidas(db: Session, momento: dt.datetime | None = None) -> list[dict]:
+    momento = momento or agora()
     resultado = []
     for m in db.scalars(select(MonitoramentoNormativo).where(MonitoramentoNormativo.ativo)).all():
         situacao = MotorAtualizacaoNormativa.situacao_da_vigilancia(
-            m.ultima_verificacao, m.periodicidade_dias, agora
+            m.ultima_verificacao, m.periodicidade_dias, momento
         )
         if situacao != "EM_DIA":
             resultado.append({

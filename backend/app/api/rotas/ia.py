@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import Sessao, entidade_do_escopo, exigir, sessao_atual
+from app.core.tempo import agora
 from app.core.enums import OrigemDado
 from app.modules.entidades.models import Entidade
 from app.modules.ia.extracao import extrair_parametros
@@ -64,7 +65,7 @@ def extrair(
             f"{len(resultado.nao_localizados)} não localizado(s)."
         ),
         solicitado_por_id=sessao.usuario.id,
-        concluida_em=dt.datetime.utcnow(),
+        concluida_em=agora(),
     )
     db.add(analise)
     db.flush()
@@ -151,7 +152,7 @@ def aceitar(
     if analise.estatuto_versao_id is None:
         raise HTTPException(422, "Análise não está vinculada a uma versão do estatuto.")
 
-    agora = dt.datetime.utcnow()
+    momento = agora()
     existentes = {
         p.chave: p
         for p in db.scalars(
@@ -176,12 +177,12 @@ def aceitar(
         p.confianca = s.confianca
         p.confirmado = True
         p.confirmado_por_id = sessao.usuario.id
-        p.confirmado_em = agora
+        p.confirmado_em = momento
         db.add(p)
 
         s.status = "ACEITA"
         s.aceita_por_id = sessao.usuario.id
-        s.aceita_em = agora
+        s.aceita_em = momento
         db.add(s)
         aceitas += 1
 

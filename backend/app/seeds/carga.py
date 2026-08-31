@@ -14,6 +14,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.tempo import agora
 from app.core.enums import (
     AlvoImpacto,
     OrigemDado,
@@ -392,12 +393,12 @@ def _demonstracao(db: Session) -> dict:
          "Entidade congênere sem fins lucrativos designada pela Assembleia Geral",
          "texto", None, "art. 40"),
     ]
-    agora = dt.datetime.utcnow()
+    momento = agora()
     for chave, valor, tipo, unidade, dispositivo in parametros:
         db.add(EstatutoParametro(
             versao_id=versao.id, chave=chave, valor=valor, tipo_valor=tipo, unidade=unidade,
             dispositivo=dispositivo, origem=OrigemDado.ESTATUTO,
-            confirmado=True, confirmado_por_id=admin.id, confirmado_em=agora,
+            confirmado=True, confirmado_por_id=admin.id, confirmado_em=momento,
         ))
 
     diretoria = Orgao(

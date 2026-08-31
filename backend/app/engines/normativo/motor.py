@@ -20,6 +20,7 @@ import datetime as dt
 import difflib
 from dataclasses import dataclass, field
 
+from app.core.tempo import agora, garantir_utc
 from app.core.enums import (
     AlvoImpacto,
     OrigemDeteccao,
@@ -185,16 +186,20 @@ class MotorAtualizacaoNormativa:
                 continue
             if alterados and v.dispositivo and v.dispositivo not in alterados:
                 continue
-            escopo = (
-                f"o dispositivo {v.dispositivo}" if v.dispositivo and alterados else "a norma"
-            )
+            # O texto vai para a tela de quem decide se revisa; concordância
+            # errada ("se apoia em o dispositivo ... que foi alterada") faz o
+            # aviso parecer gerado no automático e perder credibilidade.
+            if v.dispositivo and alterados:
+                escopo, participio = f"no {v.dispositivo} ({fonte_chave})", "alterado"
+            else:
+                escopo, participio = f"na norma {fonte_chave}", "alterada"
             impactos.append(
                 Impacto(
                     alvo_tipo=v.alvo_tipo,
                     alvo_ref=v.alvo_ref,
                     severidade=v.severidade_padrao,
                     descricao=(
-                        f"“{v.alvo_ref}” se apoia em {escopo} {fonte_chave}, que foi alterada. "
+                        f"“{v.alvo_ref}” se apoia {escopo}, que foi {participio}. "
                         f"Revise antes de usar em novos atos."
                     ),
                 )
@@ -232,7 +237,7 @@ class MotorAtualizacaoNormativa:
             texto=texto_novo,
             hash_conteudo=impressao_digital(texto_novo),
             curado_por=curado_por,
-            curado_em=curado_em or dt.datetime.utcnow(),
+            curado_em=curado_em or agora(),
         )
 
         anterior = None
@@ -256,17 +261,19 @@ class MotorAtualizacaoNormativa:
 
     @staticmethod
     def proxima_verificacao(ultima: dt.datetime | None, periodicidade_dias: int) -> dt.date:
-        base = (ultima or dt.datetime.utcnow()).date()
+        base = (garantir_utc(ultima) or agora()).date()
         return base + dt.timedelta(days=periodicidade_dias)
 
     @staticmethod
     def situacao_da_vigilancia(
-        ultima: dt.datetime | None, periodicidade_dias: int, agora: dt.datetime | None = None
+        ultima: dt.datetime | None, periodicidade_dias: int, momento: dt.datetime | None = None
     ) -> str:
-        agora = agora or dt.datetime.utcnow()
+        """O instante vindo do banco pode ou não trazer fuso; normaliza os dois."""
+        referencia = garantir_utc(momento) or agora()
+        ultima = garantir_utc(ultima)
         if ultima is None:
             return "NUNCA_VERIFICADA"
-        atraso = (agora - ultima).days - periodicidade_dias
+        atraso = (referencia - ultima).days - periodicidade_dias
         if atraso > periodicidade_dias:
             return "ATRASADA"
         if atraso >= 0:

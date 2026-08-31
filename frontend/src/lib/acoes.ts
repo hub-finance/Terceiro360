@@ -125,3 +125,82 @@ export async function gerarDocumentos(
     return { ok: false, mensagem: erro instanceof ErroApi ? erro.message : "Falha ao gerar." };
   }
 }
+
+/* ────────────────────────────────────────── Central de Fontes Jurídicas */
+
+export async function verificarVigilia(
+  monitoramentoId: string,
+  conteudo?: string,
+): Promise<Resultado & { houveMudanca?: boolean; atualizacaoId?: string }> {
+  try {
+    const r = await chamarApi<{
+      houve_mudanca: boolean;
+      atualizacao_id?: string;
+      erro?: string | null;
+      diff?: string;
+    }>(`/normativo/monitoramentos/${monitoramentoId}/verificar`, {
+      method: "POST",
+      corpo: conteudo ? { conteudo } : {},
+    });
+    revalidatePath("/fontes");
+    return {
+      ok: true,
+      houveMudanca: r.houve_mudanca,
+      atualizacaoId: r.atualizacao_id,
+      // Falha de coleta não é "nada mudou": é conferência manual pendente.
+      mensagem: r.erro ?? undefined,
+    };
+  } catch (erro) {
+    return { ok: false, mensagem: erro instanceof ErroApi ? erro.message : "Falha ao verificar." };
+  }
+}
+
+export async function publicarAtualizacao(
+  atualizacaoId: string,
+  dados: {
+    texto_novo: string;
+    vigente_desde: string;
+    resumo?: string;
+    dispositivos_alterados: string[];
+    parecer_curadoria?: string;
+  },
+): Promise<Resultado & { impactos?: number }> {
+  try {
+    const r = await chamarApi<{ impactos: unknown[] }>(
+      `/normativo/atualizacoes/${atualizacaoId}/publicar`,
+      { method: "POST", corpo: dados },
+    );
+    revalidatePath("/fontes");
+    return { ok: true, impactos: r.impactos.length };
+  } catch (erro) {
+    return { ok: false, mensagem: erro instanceof ErroApi ? erro.message : "Falha ao publicar." };
+  }
+}
+
+export async function descartarAtualizacao(
+  atualizacaoId: string,
+  parecer: string,
+): Promise<Resultado> {
+  try {
+    await chamarApi(`/normativo/atualizacoes/${atualizacaoId}/descartar`, {
+      method: "POST",
+      corpo: { parecer },
+    });
+    revalidatePath("/fontes");
+    return { ok: true };
+  } catch (erro) {
+    return { ok: false, mensagem: erro instanceof ErroApi ? erro.message : "Falha ao descartar." };
+  }
+}
+
+export async function tratarImpacto(impactoId: string, dispensado = false): Promise<Resultado> {
+  try {
+    await chamarApi(`/normativo/impactos/${impactoId}/tratar?dispensado=${dispensado}`, {
+      method: "POST",
+    });
+    revalidatePath("/fontes");
+    return { ok: true };
+  } catch (erro) {
+    return { ok: false, mensagem: erro instanceof ErroApi ? erro.message : "Falha ao tratar." };
+  }
+}

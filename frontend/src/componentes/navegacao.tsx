@@ -9,7 +9,12 @@ import { Marca } from "@/componentes/marca";
 
 /** Menu principal (§50). Os itens ainda não construídos ficam visíveis mas
  *  desabilitados: esconder o roteiro do produto confunde mais do que ajuda. */
-const SECOES: { titulo: string; itens: { rotulo: string; href: string; pronto: boolean }[] }[] = [
+/** `absoluto` marca o item que não pertence a uma entidade: a base normativa é
+ *  compartilhada por todas elas. */
+const SECOES: {
+  titulo: string;
+  itens: { rotulo: string; href: string; pronto: boolean; absoluto?: boolean }[];
+}[] = [
   {
     titulo: "Visão geral",
     itens: [
@@ -39,7 +44,7 @@ const SECOES: { titulo: string; itens: { rotulo: string; href: string; pronto: b
     titulo: "Conformidade",
     itens: [
       { rotulo: "Governança", href: "/governanca", pronto: false },
-      { rotulo: "Central de Fontes", href: "/fontes", pronto: true },
+      { rotulo: "Central de Fontes", href: "/fontes", pronto: true, absoluto: true },
       { rotulo: "IA jurídica", href: "/ia", pronto: false },
     ],
   },
@@ -92,9 +97,9 @@ export function MenuLateral({
               </h3>
               <ul className="space-y-0.5">
                 {secao.itens.map((item) => {
-                  const destino = `${base}${item.href}`;
+                  const destino = item.absoluto ? item.href : `${base}${item.href}`;
                   const ativo = caminho === destino;
-                  if (!item.pronto || !entidadeId) {
+                  if (!item.pronto || (!entidadeId && !item.absoluto)) {
                     return (
                       <li key={item.rotulo}>
                         <span

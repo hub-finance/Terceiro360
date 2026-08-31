@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.tempo import agora
 from app.core.db import get_db
 from app.core.deps import Sessao, sessao_atual
 from app.core.security import conferir_senha, criar_token
@@ -55,7 +56,7 @@ def login(
     if not autorizado:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "E-mail ou senha inválidos.")
 
-    usuario.ultimo_acesso = dt.datetime.utcnow()
+    usuario.ultimo_acesso = agora()
     db.add(usuario)
     db.commit()
 

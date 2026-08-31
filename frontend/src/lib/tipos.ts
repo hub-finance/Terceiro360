@@ -249,3 +249,96 @@ export interface ResultadoGeracao {
   sem_modelo_cadastrado: string[];
   ressalvas: Achado[];
 }
+
+/* ──────────────────────────────────── Central de Fontes Jurídicas (§38) */
+
+export interface FonteResumo {
+  id: string;
+  chave: string;
+  identificacao: string;
+  apelido: string | null;
+  tipo: string;
+  jurisdicao: string;
+  url_oficial: string | null;
+  ementa: string | null;
+  versao_vigente: number | null;
+  vigente_desde: string | null;
+  /** §46 — se a redação já foi conferida por responsável habilitado. */
+  curada: boolean;
+  curador: string | null;
+  total_versoes: number;
+}
+
+export interface Dispositivo {
+  identificacao: string;
+  texto: string | null;
+  tags: string[];
+  revogado: boolean;
+}
+
+export interface VersaoNorma {
+  numero: number;
+  situacao: string;
+  vigente_desde: string | null;
+  vigente_ate: string | null;
+  curada: boolean;
+  resumo_alteracao: string | null;
+  dispositivos?: Dispositivo[];
+}
+
+export interface FonteDetalhada {
+  chave: string;
+  identificacao: string;
+  apelido: string | null;
+  url_oficial: string | null;
+  ementa: string | null;
+  consultado_em: string;
+  versao_aplicavel: VersaoNorma | null;
+  historico: VersaoNorma[];
+}
+
+export interface Vigilia {
+  id: string;
+  nome: string;
+  modo: "HTTP" | "MANUAL";
+  url?: string | null;
+  situacao: "EM_DIA" | "VENCIDA" | "ATRASADA" | "NUNCA_VERIFICADA";
+  ultima_verificacao: string | null;
+  periodicidade_dias: number;
+  proxima_verificacao: string;
+  ultimo_erro?: string | null;
+  ativo?: boolean;
+}
+
+export interface AtualizacaoNormativa {
+  id: string;
+  titulo: string;
+  situacao: "DETECTADA" | "EM_ANALISE" | "APROVADA" | "PUBLICADA" | "DESCARTADA";
+  origem: string;
+  resumo: string | null;
+  detectado_em: string | null;
+  publicado_em: string | null;
+  url_evidencia: string | null;
+  impactos_abertos: number;
+  tem_diff: boolean;
+}
+
+export interface ImpactoNormativo {
+  id: string;
+  alvo_tipo: string;
+  alvo_ref: string;
+  severidade: string;
+  descricao: string | null;
+  status: string;
+  norma: string | null;
+  publicado_em: string | null;
+}
+
+export interface VinculoNormativo {
+  id: string;
+  alvo_tipo: string;
+  alvo_ref: string;
+  fonte_chave: string;
+  dispositivo: string | null;
+  observacao: string | null;
+}

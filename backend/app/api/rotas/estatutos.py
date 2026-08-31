@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import Sessao, entidade_do_escopo, exigir, sessao_atual
+from app.core.tempo import agora
 from app.core.enums import OrigemDado
 from app.engines.conformidade.catalogo import CATALOGO, por_grupo
 from app.modules.entidades.models import Entidade
@@ -174,7 +175,7 @@ def gravar_parametros(
 ):
     versao = _versao_do_escopo(db, sessao, versao_id)
     existentes = {p.chave: p for p in versao.parametros}
-    agora = dt.datetime.utcnow()
+    momento = agora()
 
     for entrada in parametros:
         if entrada.chave not in CATALOGO:
@@ -192,7 +193,7 @@ def gravar_parametros(
         p.confirmado = entrada.confirmado
         if entrada.confirmado:
             p.confirmado_por_id = sessao.usuario.id
-            p.confirmado_em = agora
+            p.confirmado_em = momento
         db.add(p)
 
     db.commit()
@@ -215,7 +216,7 @@ def confirmar(
         raise HTTPException(422, "Não é possível confirmar um parâmetro sem valor.")
     p.confirmado = True
     p.confirmado_por_id = sessao.usuario.id
-    p.confirmado_em = dt.datetime.utcnow()
+    p.confirmado_em = agora()
     db.add(p)
     db.commit()
     return {"chave": chave, "confirmado": True, "por": sessao.usuario.nome}

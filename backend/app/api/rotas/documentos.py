@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import Sessao, entidade_do_escopo, exigir, sessao_atual
+from app.core.tempo import agora
 from app.core.enums import (
     CategoriaDocumento,
     StatusAssinatura,
@@ -219,7 +220,7 @@ def registrar_assinatura(
     _documento_do_escopo(db, sessao, assinatura.documento_id)
 
     assinatura.status = StatusAssinatura.ASSINADO
-    assinatura.data_assinatura = dados.data_assinatura or dt.datetime.utcnow()
+    assinatura.data_assinatura = dados.data_assinatura or agora()
     assinatura.provedor = dados.provedor
     assinatura.evidencia = dados.evidencia
     db.add(assinatura)

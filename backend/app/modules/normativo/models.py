@@ -26,6 +26,7 @@ from app.core.enums import (
     SituacaoVersaoNorma,
     TipoFonte,
 )
+from app.core.tempo import dias_entre
 from app.core.types import EnumType, GUID, JSONType
 
 
@@ -166,12 +167,11 @@ class MonitoramentoNormativo(UUIDMixin, TimestampMixin, Base):
 
     fonte: Mapped[FonteJuridica | None] = relationship()
 
-    def vencido_em(self, agora: dt.datetime) -> bool:
+    def vencido_em(self, momento: dt.datetime) -> bool:
         if not self.ativo:
             return False
-        if self.ultima_verificacao is None:
-            return True
-        return (agora - self.ultima_verificacao).days >= self.periodicidade_dias
+        dias = dias_entre(self.ultima_verificacao, momento)
+        return dias is None or dias >= self.periodicidade_dias
 
 
 class AtualizacaoNormativa(UUIDMixin, TimestampMixin, Base):
