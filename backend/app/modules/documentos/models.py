@@ -16,7 +16,7 @@ from app.core.enums import (
     TipoAssinatura,
     TipoDocumento,
 )
-from app.core.types import GUID, JSONType
+from app.core.types import EnumType, GUID, JSONType
 
 
 class Template(UUIDMixin, TimestampMixin, Base):
@@ -31,7 +31,7 @@ class Template(UUIDMixin, TimestampMixin, Base):
     cliente_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("clientes.id"))
     codigo: Mapped[str] = mapped_column(String(80), index=True)
     nome: Mapped[str] = mapped_column(String(200))
-    tipo_documento: Mapped[TipoDocumento] = mapped_column(String(40))
+    tipo_documento: Mapped[TipoDocumento] = mapped_column(EnumType(TipoDocumento))
     # Restrições de aplicabilidade: tipos de entidade e tipos de evento.
     tipos_entidade: Mapped[list] = mapped_column(JSONType(), default=list)
     tipos_evento: Mapped[list] = mapped_column(JSONType(), default=list)
@@ -52,11 +52,11 @@ class Documento(UUIDMixin, TimestampMixin, Base):
 
     entidade_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("entidades.id"), index=True)
     evento_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("eventos.id"), index=True)
-    tipo: Mapped[TipoDocumento] = mapped_column(String(40))
-    categoria: Mapped[CategoriaDocumento] = mapped_column(String(30), default=CategoriaDocumento.OUTRO)
+    tipo: Mapped[TipoDocumento] = mapped_column(EnumType(TipoDocumento))
+    categoria: Mapped[CategoriaDocumento] = mapped_column(EnumType(CategoriaDocumento), default=CategoriaDocumento.OUTRO)
     titulo: Mapped[str] = mapped_column(String(300))
     data_documento: Mapped[dt.date | None] = mapped_column(Date)
-    status: Mapped[StatusDocumento] = mapped_column(String(20), default=StatusDocumento.RASCUNHO, index=True)
+    status: Mapped[StatusDocumento] = mapped_column(EnumType(StatusDocumento), default=StatusDocumento.RASCUNHO, index=True)
     versao_atual: Mapped[int] = mapped_column(Integer, default=0)
     responsavel_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("usuarios.id"))
     protocolo_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("protocolos.id"))
@@ -108,8 +108,8 @@ class Assinatura(UUIDMixin, TimestampMixin, Base):
     pessoa_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("pessoas.id"))
     nome_signatario: Mapped[str] = mapped_column(String(200))
     papel: Mapped[str | None] = mapped_column(String(120))  # presidente|secretário|advogado|testemunha
-    tipo: Mapped[TipoAssinatura] = mapped_column(String(20), default=TipoAssinatura.FISICA)
-    status: Mapped[StatusAssinatura] = mapped_column(String(20), default=StatusAssinatura.PENDENTE)
+    tipo: Mapped[TipoAssinatura] = mapped_column(EnumType(TipoAssinatura), default=TipoAssinatura.FISICA)
+    status: Mapped[StatusAssinatura] = mapped_column(EnumType(StatusAssinatura), default=StatusAssinatura.PENDENTE)
     exige_reconhecimento_firma: Mapped[bool] = mapped_column(Boolean, default=False)
     data_assinatura: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     provedor: Mapped[str | None] = mapped_column(String(60))

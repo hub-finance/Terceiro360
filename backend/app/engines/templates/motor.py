@@ -53,7 +53,8 @@ class LacunaUndefined(Undefined):
         return iter(())
 
     def __bool__(self) -> bool:
-        self._registrar()
+        # Testar a variável num `{% if %}` não conta como lacuna: o modelo
+        # está justamente prevendo que ela possa não existir.
         return False
 
     def __len__(self) -> int:
@@ -162,6 +163,20 @@ def variaveis_do_template(corpo: str) -> list[str]:
     return sorted(meta.find_undeclared_variables(ast))
 
 
+def _ausencia_prevista(corpo: str) -> set[str]:
+    """Nomes cuja ausência o próprio modelo já prevê, num `{% if %}`.
+
+    Se o modelo testa a variável antes de usá-la, o texto simplesmente omite
+    aquele trecho quando ela falta — não sai DADO NÃO INFORMADO. Tratar isso
+    como lacuna encheria a revisão de alarme falso, e alarme falso demais faz
+    o revisor parar de olhar.
+    """
+    previstas: set[str] = set()
+    for bloco in re.findall(r"{%-?\s*(?:if|elif)\s+(.+?)\s*-?%}", corpo, re.DOTALL):
+        previstas.update(re.findall(r"\b([A-Z][A-Z0-9_]*)\b", bloco))
+    return previstas
+
+
 def renderizar(corpo: str, contexto: dict) -> ResultadoRenderizacao:
     env = _ambiente()
     usadas = variaveis_do_template(corpo)
@@ -176,10 +191,12 @@ def renderizar(corpo: str, contexto: dict) -> ResultadoRenderizacao:
     lacunas = sorted(LacunaUndefined.lacunas)
     LacunaUndefined.lacunas = set()
 
-    # Variáveis presentes no contexto mas com valor vazio também são lacunas.
+    # Variável presente no contexto mas vazia também é lacuna — salvo quando o
+    # modelo só a testa em condicional, caso já coberto acima.
+    previstas = _ausencia_prevista(corpo)
     for nome in usadas:
         valor = contexto.get(nome)
-        if valor in (None, "", [], {}) and nome not in lacunas:
+        if valor in (None, "", [], {}) and nome not in lacunas and nome not in previstas:
             lacunas.append(nome)
     return ResultadoRenderizacao(texto, sorted(lacunas), usadas)
 

@@ -7,7 +7,22 @@ from __future__ import annotations
 from enum import Enum
 
 
-class Semaforo(str, Enum):
+class TextoEnum(str, Enum):
+    """Enum de texto cujo `str()` devolve o valor, não `Classe.MEMBRO`.
+
+    Isso importa: o valor viaja em JSON, entra em comparações com strings vindas
+    do banco e é usado como chave de registro dos checks. `str(TipoEvento.X)`
+    precisa dar `"X"`.
+    """
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}.{self.name}"
+
+
+class Semaforo(TextoEnum):
     """§13 — Sistema de semáforo."""
 
     APTO = "APTO"                # 🟢
@@ -23,7 +38,7 @@ class Semaforo(str, Enum):
         return {"APTO": 0, "PENDENCIA": 1, "BLOQUEADO": 2}[self.value]
 
 
-class OrigemDado(str, Enum):
+class OrigemDado(TextoEnum):
     """§4 — de onde veio o parâmetro usado numa validação."""
 
     LEI = "LEI"
@@ -35,7 +50,7 @@ class OrigemDado(str, Enum):
     IA_SUGERIDO = "IA_SUGERIDO"
 
 
-class StatusParametro(str, Enum):
+class StatusParametro(TextoEnum):
     """§46 — regra de não invenção."""
 
     CONFIRMADO = "CONFIRMADO"
@@ -44,7 +59,7 @@ class StatusParametro(str, Enum):
     INCONSISTENCIA = "INCONSISTENCIA_IDENTIFICADA"
 
 
-class TipoEntidade(str, Enum):
+class TipoEntidade(TextoEnum):
     """§6 — classificação."""
 
     ASSOCIACAO = "ASSOCIACAO"
@@ -60,7 +75,7 @@ class TipoEntidade(str, Enum):
     OUTRA = "OUTRA"
 
 
-class TipoEvento(str, Enum):
+class TipoEvento(TextoEnum):
     """§10 — motor de eventos."""
 
     # Constituição
@@ -99,7 +114,7 @@ class TipoEvento(str, Enum):
     ENCERRAMENTO = "ENCERRAMENTO"
 
 
-class StatusEvento(str, Enum):
+class StatusEvento(TextoEnum):
     """§28 — ciclo de vida do ato."""
 
     RASCUNHO = "RASCUNHO"
@@ -116,7 +131,7 @@ class StatusEvento(str, Enum):
     CANCELADO = "CANCELADO"
 
 
-class TipoOrgao(str, Enum):
+class TipoOrgao(TextoEnum):
     """§18 — mapa de governança."""
 
     SUPERIOR = "SUPERIOR"
@@ -128,7 +143,7 @@ class TipoOrgao(str, Enum):
     MINISTERIO = "MINISTERIO"
 
 
-class SituacaoMembro(str, Enum):
+class SituacaoMembro(TextoEnum):
     ATIVO = "ATIVO"
     RENUNCIANTE = "RENUNCIANTE"
     DESTITUIDO = "DESTITUIDO"
@@ -136,24 +151,24 @@ class SituacaoMembro(str, Enum):
     ENCERRADO = "ENCERRADO"
 
 
-class SituacaoAssociado(str, Enum):
+class SituacaoAssociado(TextoEnum):
     ATIVO = "ATIVO"
     SUSPENSO = "SUSPENSO"
     DESLIGADO = "DESLIGADO"
     LICENCIADO = "LICENCIADO"
 
 
-class TipoAssembleia(str, Enum):
+class TipoAssembleia(TextoEnum):
     ORDINARIA = "ORDINARIA"
     EXTRAORDINARIA = "EXTRAORDINARIA"
 
 
-class Convocacao(str, Enum):
+class Convocacao(TextoEnum):
     PRIMEIRA = "PRIMEIRA"
     SEGUNDA = "SEGUNDA"
 
 
-class TipoDocumento(str, Enum):
+class TipoDocumento(TextoEnum):
     """§14 — gerador de documentos."""
 
     EDITAL_CONVOCACAO = "EDITAL_CONVOCACAO"
@@ -182,7 +197,7 @@ class TipoDocumento(str, Enum):
     OUTRO = "OUTRO"
 
 
-class CategoriaDocumento(str, Enum):
+class CategoriaDocumento(TextoEnum):
     """§19 — repositório documental."""
 
     ESTATUTO = "ESTATUTO"
@@ -203,7 +218,7 @@ class CategoriaDocumento(str, Enum):
     OUTRO = "OUTRO"
 
 
-class StatusDocumento(str, Enum):
+class StatusDocumento(TextoEnum):
     """§28 — GERADO → REVISADO → APROVADO → ASSINADO → PROTOCOLADO → REGISTRADO."""
 
     RASCUNHO = "RASCUNHO"
@@ -217,20 +232,20 @@ class StatusDocumento(str, Enum):
     CANCELADO = "CANCELADO"
 
 
-class TipoAssinatura(str, Enum):
+class TipoAssinatura(TextoEnum):
     FISICA = "FISICA"
     ELETRONICA = "ELETRONICA"
     ICP_BRASIL = "ICP_BRASIL"
 
 
-class StatusAssinatura(str, Enum):
+class StatusAssinatura(TextoEnum):
     PENDENTE = "PENDENTE"
     ASSINADO = "ASSINADO"
     RECUSADO = "RECUSADO"
     CANCELADO = "CANCELADO"
 
 
-class StatusProtocolo(str, Enum):
+class StatusProtocolo(TextoEnum):
     PREPARACAO = "PREPARACAO"
     PROTOCOLADO = "PROTOCOLADO"
     EM_EXIGENCIA = "EM_EXIGENCIA"
@@ -239,7 +254,7 @@ class StatusProtocolo(str, Enum):
     DESISTENCIA = "DESISTENCIA"
 
 
-class StatusParecer(str, Enum):
+class StatusParecer(TextoEnum):
     """§27 — módulo de advocacia."""
 
     EM_ANALISE = "EM_ANALISE"
@@ -250,7 +265,7 @@ class StatusParecer(str, Enum):
     NECESSITA_ALTERACAO = "NECESSITA_ALTERACAO"
 
 
-class Prioridade(str, Enum):
+class Prioridade(TextoEnum):
     """§43 — central de pendências."""
 
     URGENTE = "URGENTE"   # 🔴
@@ -259,14 +274,14 @@ class Prioridade(str, Enum):
     BAIXA = "BAIXA"       # 🟢
 
 
-class StatusPendencia(str, Enum):
+class StatusPendencia(TextoEnum):
     ABERTA = "ABERTA"
     EM_ANDAMENTO = "EM_ANDAMENTO"
     RESOLVIDA = "RESOLVIDA"
     CANCELADA = "CANCELADA"
 
 
-class TipoPrazo(str, Enum):
+class TipoPrazo(TextoEnum):
     """§21 — módulo de prazos."""
 
     FIM_MANDATO = "FIM_MANDATO"
@@ -281,14 +296,14 @@ class TipoPrazo(str, Enum):
     OUTRO = "OUTRO"
 
 
-class StatusPrazo(str, Enum):
+class StatusPrazo(TextoEnum):
     ABERTO = "ABERTO"
     CUMPRIDO = "CUMPRIDO"
     VENCIDO = "VENCIDO"
     CANCELADO = "CANCELADO"
 
 
-class TipoFonte(str, Enum):
+class TipoFonte(TextoEnum):
     """§38 — central de fontes jurídicas."""
 
     LEI = "LEI"
@@ -300,7 +315,7 @@ class TipoFonte(str, Enum):
     REGIMENTO = "REGIMENTO"
 
 
-class FuncaoEclesiastica(str, Enum):
+class FuncaoEclesiastica(TextoEnum):
     """§17 — núcleo de igrejas."""
 
     PASTOR_PRESIDENTE = "PASTOR_PRESIDENTE"
@@ -313,7 +328,7 @@ class FuncaoEclesiastica(str, Enum):
     OBREIRO = "OBREIRO"
 
 
-class TipoUnidadeEclesiastica(str, Enum):
+class TipoUnidadeEclesiastica(TextoEnum):
     DENOMINACAO = "DENOMINACAO"
     CONVENCAO = "CONVENCAO"
     IGREJA_SEDE = "IGREJA_SEDE"
@@ -324,7 +339,7 @@ class TipoUnidadeEclesiastica(str, Enum):
     MINISTERIO = "MINISTERIO"
 
 
-class Modulo(str, Enum):
+class Modulo(TextoEnum):
     """Módulos comerciais do TERCEIRO360.
 
     TERCEIRO360 CONTÁBIL está especificado e reservado para fase posterior
@@ -338,7 +353,7 @@ class Modulo(str, Enum):
     IA = "TERCEIRO360_IA"
 
 
-class Plano(str, Enum):
+class Plano(TextoEnum):
     """§45 — modelo de negócio. O plano CONTÁBIL entra com o módulo reservado."""
 
     BASICO = "BASICO"
@@ -346,7 +361,7 @@ class Plano(str, Enum):
     ESCRITORIO = "ESCRITORIO"
 
 
-class Jurisdicao(str, Enum):
+class Jurisdicao(TextoEnum):
     """Alcance territorial/institucional de uma fonte normativa."""
 
     FEDERAL = "FEDERAL"
@@ -356,7 +371,7 @@ class Jurisdicao(str, Enum):
     INTERNA = "INTERNA"
 
 
-class SituacaoVersaoNorma(str, Enum):
+class SituacaoVersaoNorma(TextoEnum):
     """Ciclo de vida de uma versão de norma na Central de Fontes."""
 
     RASCUNHO = "RASCUNHO"
@@ -366,7 +381,7 @@ class SituacaoVersaoNorma(str, Enum):
     REVOGADA = "REVOGADA"
 
 
-class OrigemDeteccao(str, Enum):
+class OrigemDeteccao(TextoEnum):
     """Como uma possível mudança normativa chegou ao sistema."""
 
     MONITOR = "MONITOR"
@@ -375,7 +390,7 @@ class OrigemDeteccao(str, Enum):
     COMUNICADO_RCPJ = "COMUNICADO_RCPJ"
 
 
-class SituacaoAtualizacao(str, Enum):
+class SituacaoAtualizacao(TextoEnum):
     """§38/§46 — nenhuma atualização vale sem curadoria humana."""
 
     DETECTADA = "DETECTADA"
@@ -385,7 +400,7 @@ class SituacaoAtualizacao(str, Enum):
     DESCARTADA = "DESCARTADA"
 
 
-class AlvoImpacto(str, Enum):
+class AlvoImpacto(TextoEnum):
     """O que pode ser atingido por uma mudança normativa."""
 
     REGRA_VALIDACAO = "REGRA_VALIDACAO"
@@ -397,7 +412,7 @@ class AlvoImpacto(str, Enum):
     ENTIDADE = "ENTIDADE"
 
 
-class SeveridadeImpacto(str, Enum):
+class SeveridadeImpacto(TextoEnum):
     INFORMATIVA = "INFORMATIVA"
     REVISAO_RECOMENDADA = "REVISAO_RECOMENDADA"
     REVISAO_OBRIGATORIA = "REVISAO_OBRIGATORIA"

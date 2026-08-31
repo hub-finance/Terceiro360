@@ -24,6 +24,10 @@ class ItemChecklist:
     fundamento: str | None = None
     status: str = "PENDENTE"          # PENDENTE|OK|NAO_APLICAVEL
     observacao: str | None = None
+    # Um mesmo documento costuma ser exigido por mais de uma fonte: a ata é
+    # produzida pelo ato e também cobrada pelo cartório. Guardar todas as
+    # origens evita que uma esconda a outra.
+    origens: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -112,23 +116,35 @@ DOCUMENTOS_PADRAO = (
 
 def montar(ctx: ContextoValidacao) -> Checklist:
     checklist = Checklist(tipo_evento=ctx.tipo_evento)
-    vistos: set[str] = set()
+    vistos: dict[str, ItemChecklist] = {}
+
+    # Quando duas fontes pedem o mesmo documento, a exigência mais forte manda:
+    # o cartório rejeita o protocolo, o estatuto vicia a deliberação.
+    forca = {"SISTEMA": 0, "ATO": 1, "ESTATUTO": 2, "LEI": 3, "RCPJ": 4}
 
     def adicionar(codigo, descricao, obrigatorio, origem, fundamento=None, observacao=None):
-        if codigo in vistos:
+        existente = vistos.get(codigo)
+        if existente is not None:
+            if origem not in existente.origens:
+                existente.origens.append(origem)
+            if forca.get(origem, 0) > forca.get(existente.origem, 0):
+                existente.origem = origem
+                existente.fundamento = fundamento or existente.fundamento
+            existente.obrigatorio = existente.obrigatorio or obrigatorio
+            existente.observacao = existente.observacao or observacao
             return
-        vistos.add(codigo)
-        checklist.itens.append(
-            ItemChecklist(
-                codigo=codigo,
-                descricao=descricao,
-                obrigatorio=obrigatorio,
-                origem=origem,
-                fundamento=fundamento,
-                status="OK" if codigo in ctx.documentos_anexados else "PENDENTE",
-                observacao=observacao,
-            )
+        item = ItemChecklist(
+            codigo=codigo,
+            descricao=descricao,
+            obrigatorio=obrigatorio,
+            origem=origem,
+            origens=[origem],
+            fundamento=fundamento,
+            status="OK" if codigo in ctx.documentos_anexados else "PENDENTE",
+            observacao=observacao,
         )
+        vistos[codigo] = item
+        checklist.itens.append(item)
 
     # 1. O que o ato produz.
     for codigo, descricao, obrigatorio in DOCUMENTOS_DO_ATO.get(ctx.tipo_evento, DOCUMENTOS_PADRAO):

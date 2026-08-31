@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, TimestampMixin, UUIDMixin
 from app.core.enums import TipoEntidade
-from app.core.types import GUID, JSONType
+from app.core.types import EnumType, GUID, JSONType
 
 
 class NaturezaJuridica(UUIDMixin, TimestampMixin, Base):
@@ -33,7 +33,7 @@ class Entidade(UUIDMixin, TimestampMixin, Base):
     nome_fantasia: Mapped[str | None] = mapped_column(String(300))
     cnpj: Mapped[str | None] = mapped_column(String(18), index=True)
     natureza_juridica_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("naturezas_juridicas.id"))
-    tipo_entidade: Mapped[TipoEntidade] = mapped_column(String(30), default=TipoEntidade.ASSOCIACAO)
+    tipo_entidade: Mapped[TipoEntidade] = mapped_column(EnumType(TipoEntidade), default=TipoEntidade.ASSOCIACAO)
 
     data_constituicao: Mapped[dt.date | None] = mapped_column(Date)
     data_inscricao_cnpj: Mapped[dt.date | None] = mapped_column(Date)

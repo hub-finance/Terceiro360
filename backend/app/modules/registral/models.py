@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, TimestampMixin, UUIDMixin
 from app.core.enums import StatusProtocolo
-from app.core.types import GUID, JSONType
+from app.core.types import EnumType, GUID, JSONType
 
 
 class RCPJ(UUIDMixin, TimestampMixin, Base):
@@ -73,7 +73,7 @@ class Protocolo(UUIDMixin, TimestampMixin, Base):
     rcpj_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("rcpj.id"))
     numero: Mapped[str | None] = mapped_column(String(60))
     data_protocolo: Mapped[dt.date | None] = mapped_column(Date)
-    status: Mapped[StatusProtocolo] = mapped_column(String(20), default=StatusProtocolo.PREPARACAO)
+    status: Mapped[StatusProtocolo] = mapped_column(EnumType(StatusProtocolo), default=StatusProtocolo.PREPARACAO)
     # [{descricao, prazo, cumprida, data}]
     exigencias: Mapped[list] = mapped_column(JSONType(), default=list)
     data_registro: Mapped[dt.date | None] = mapped_column(Date)

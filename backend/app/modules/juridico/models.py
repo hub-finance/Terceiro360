@@ -21,7 +21,7 @@ from app.core.enums import (
     TipoEvento,
     TipoOrgao,
 )
-from app.core.types import GUID, JSONType
+from app.core.types import EnumType, GUID, JSONType
 
 
 # ---------------------------------------------------------------- Pessoas
@@ -130,7 +130,7 @@ class EstatutoParametro(UUIDMixin, TimestampMixin, Base):
     unidade: Mapped[str | None] = mapped_column(String(30))  # dias|meses|anos|percentual|fracao
     dispositivo: Mapped[str | None] = mapped_column(String(120))  # ex.: "art. 21, §2º"
     trecho: Mapped[str | None] = mapped_column(Text)
-    origem: Mapped[OrigemDado] = mapped_column(String(20), default=OrigemDado.ESTATUTO)
+    origem: Mapped[OrigemDado] = mapped_column(EnumType(OrigemDado), default=OrigemDado.ESTATUTO)
     confianca: Mapped[float | None] = mapped_column(Numeric(4, 3))  # preenchida pela IA (§37)
     confirmado: Mapped[bool] = mapped_column(Boolean, default=False)
     confirmado_por_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("usuarios.id"))
@@ -151,7 +151,7 @@ class Orgao(UUIDMixin, TimestampMixin, Base):
     entidade_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("entidades.id"), index=True)
     nome: Mapped[str] = mapped_column(String(150))
     codigo: Mapped[str | None] = mapped_column(String(50))
-    tipo: Mapped[TipoOrgao] = mapped_column(String(20), default=TipoOrgao.EXECUTIVO)
+    tipo: Mapped[TipoOrgao] = mapped_column(EnumType(TipoOrgao), default=TipoOrgao.EXECUTIVO)
     orgao_pai_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("orgaos.id"))
     competencias: Mapped[list] = mapped_column(JSONType(), default=list)
     dispositivo_estatutario: Mapped[str | None] = mapped_column(String(120))
@@ -212,7 +212,7 @@ class MandatoMembro(UUIDMixin, TimestampMixin, Base):
     cargo_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("cargos.id"))
     data_inicio: Mapped[dt.date] = mapped_column(Date)
     data_fim: Mapped[dt.date | None] = mapped_column(Date)
-    situacao: Mapped[SituacaoMembro] = mapped_column(String(20), default=SituacaoMembro.ATIVO)
+    situacao: Mapped[SituacaoMembro] = mapped_column(EnumType(SituacaoMembro), default=SituacaoMembro.ATIVO)
     documento_eleicao_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("documentos.id"))
     documento_posse_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("documentos.id"))
     protocolo_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("protocolos.id"))
@@ -236,7 +236,7 @@ class Associado(UUIDMixin, TimestampMixin, Base):
     pessoa_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("pessoas.id"), index=True)
     categoria: Mapped[str | None] = mapped_column(String(60))  # fundador|efetivo|contribuinte|honorário|membro
     data_admissao: Mapped[dt.date | None] = mapped_column(Date)
-    situacao: Mapped[SituacaoAssociado] = mapped_column(String(20), default=SituacaoAssociado.ATIVO)
+    situacao: Mapped[SituacaoAssociado] = mapped_column(EnumType(SituacaoAssociado), default=SituacaoAssociado.ATIVO)
     direito_voto: Mapped[bool] = mapped_column(Boolean, default=True)
     elegivel: Mapped[bool] = mapped_column(Boolean, default=True)
     data_suspensao: Mapped[dt.date | None] = mapped_column(Date)
@@ -267,14 +267,14 @@ class Evento(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "eventos"
 
     entidade_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("entidades.id"), index=True)
-    tipo: Mapped[TipoEvento] = mapped_column(String(40), index=True)
+    tipo: Mapped[TipoEvento] = mapped_column(EnumType(TipoEvento), index=True)
     titulo: Mapped[str | None] = mapped_column(String(200))
-    status: Mapped[StatusEvento] = mapped_column(String(20), default=StatusEvento.RASCUNHO, index=True)
+    status: Mapped[StatusEvento] = mapped_column(EnumType(StatusEvento), default=StatusEvento.RASCUNHO, index=True)
     data_referencia: Mapped[dt.date | None] = mapped_column(Date)
     # Respostas do questionário inteligente (§11).
     dados: Mapped[dict] = mapped_column(JSONType(), default=dict)
     # Último resultado do motor de validação (§12/§13).
-    semaforo: Mapped[Semaforo | None] = mapped_column(String(15))
+    semaforo: Mapped[Semaforo | None] = mapped_column(EnumType(Semaforo))
     validado_em: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     resultado_validacao: Mapped[dict] = mapped_column(JSONType(), default=dict)
     criado_por_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("usuarios.id"))
@@ -288,10 +288,10 @@ class Assembleia(UUIDMixin, TimestampMixin, Base):
 
     evento_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("eventos.id"), index=True)
     entidade_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("entidades.id"), index=True)
-    tipo: Mapped[TipoAssembleia] = mapped_column(String(20), default=TipoAssembleia.EXTRAORDINARIA)
+    tipo: Mapped[TipoAssembleia] = mapped_column(EnumType(TipoAssembleia), default=TipoAssembleia.EXTRAORDINARIA)
     data_hora: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     local: Mapped[str | None] = mapped_column(String(300))
-    convocacao: Mapped[Convocacao] = mapped_column(String(20), default=Convocacao.PRIMEIRA)
+    convocacao: Mapped[Convocacao] = mapped_column(EnumType(Convocacao), default=Convocacao.PRIMEIRA)
     hora_segunda_convocacao: Mapped[str | None] = mapped_column(String(10))
     total_aptos: Mapped[int | None] = mapped_column(Integer)
     total_presentes: Mapped[int | None] = mapped_column(Integer)
@@ -367,7 +367,7 @@ class ParecerJuridico(UUIDMixin, TimestampMixin, Base):
     evento_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("eventos.id"), index=True)
     responsavel_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("usuarios.id"))
     registro_oab: Mapped[str | None] = mapped_column(String(30))
-    status: Mapped[StatusParecer] = mapped_column(String(30), default=StatusParecer.EM_ANALISE)
+    status: Mapped[StatusParecer] = mapped_column(EnumType(StatusParecer), default=StatusParecer.EM_ANALISE)
     texto: Mapped[str | None] = mapped_column(Text)
     ressalvas: Mapped[str | None] = mapped_column(Text)
     data_parecer: Mapped[dt.date | None] = mapped_column(Date)

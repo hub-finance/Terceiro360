@@ -26,7 +26,7 @@ from app.core.enums import (
     SituacaoVersaoNorma,
     TipoFonte,
 )
-from app.core.types import GUID, JSONType
+from app.core.types import EnumType, GUID, JSONType
 
 
 class FonteJuridica(UUIDMixin, TimestampMixin, Base):
@@ -38,8 +38,8 @@ class FonteJuridica(UUIDMixin, TimestampMixin, Base):
     chave: Mapped[str] = mapped_column(String(60), index=True)          # "CC_2002"
     identificacao: Mapped[str] = mapped_column(String(200))             # "Lei nº 10.406/2002"
     apelido: Mapped[str | None] = mapped_column(String(200))            # "Código Civil"
-    tipo: Mapped[TipoFonte] = mapped_column(String(30), default=TipoFonte.LEI)
-    jurisdicao: Mapped[Jurisdicao] = mapped_column(String(20), default=Jurisdicao.FEDERAL)
+    tipo: Mapped[TipoFonte] = mapped_column(EnumType(TipoFonte), default=TipoFonte.LEI)
+    jurisdicao: Mapped[Jurisdicao] = mapped_column(EnumType(Jurisdicao), default=Jurisdicao.FEDERAL)
     uf: Mapped[str | None] = mapped_column(String(2))
     municipio: Mapped[str | None] = mapped_column(String(120))
     orgao_emissor: Mapped[str | None] = mapped_column(String(200))
@@ -72,7 +72,7 @@ class FonteVersao(UUIDMixin, TimestampMixin, Base):
 
     fonte_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("fontes_juridicas.id"), index=True)
     numero_versao: Mapped[int] = mapped_column(Integer, default=1)
-    situacao: Mapped[SituacaoVersaoNorma] = mapped_column(String(20), default=SituacaoVersaoNorma.RASCUNHO)
+    situacao: Mapped[SituacaoVersaoNorma] = mapped_column(EnumType(SituacaoVersaoNorma), default=SituacaoVersaoNorma.RASCUNHO)
     vigente_desde: Mapped[dt.date | None] = mapped_column(Date, index=True)
     vigente_ate: Mapped[dt.date | None] = mapped_column(Date)
     publicado_em: Mapped[dt.date | None] = mapped_column(Date)
@@ -80,7 +80,7 @@ class FonteVersao(UUIDMixin, TimestampMixin, Base):
     texto_referencia: Mapped[str | None] = mapped_column(Text)
     url_captura: Mapped[str | None] = mapped_column(String(500))
     hash_conteudo: Mapped[str | None] = mapped_column(String(64))
-    origem_captura: Mapped[OrigemDeteccao] = mapped_column(String(20), default=OrigemDeteccao.MANUAL)
+    origem_captura: Mapped[OrigemDeteccao] = mapped_column(EnumType(OrigemDeteccao), default=OrigemDeteccao.MANUAL)
 
     # Curadoria humana obrigatória — sem isto a versão não entra em vigor (§46).
     curado_por_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("usuarios.id"))
@@ -133,7 +133,7 @@ class VinculoNormativo(UUIDMixin, TimestampMixin, Base):
         UniqueConstraint("alvo_tipo", "alvo_ref", "fonte_chave", "dispositivo", name="uq_vinculo_alvo_fonte"),
     )
 
-    alvo_tipo: Mapped[AlvoImpacto] = mapped_column(String(30), index=True)
+    alvo_tipo: Mapped[AlvoImpacto] = mapped_column(EnumType(AlvoImpacto), index=True)
     alvo_ref: Mapped[str] = mapped_column(String(120), index=True)  # código da regra/template
     fonte_chave: Mapped[str] = mapped_column(String(60), index=True)
     dispositivo: Mapped[str | None] = mapped_column(String(120))
@@ -188,9 +188,8 @@ class AtualizacaoNormativa(UUIDMixin, TimestampMixin, Base):
     monitoramento_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("monitoramentos_normativos.id")
     )
-    origem: Mapped[OrigemDeteccao] = mapped_column(String(25), default=OrigemDeteccao.MANUAL)
-    situacao: Mapped[SituacaoAtualizacao] = mapped_column(
-        String(20), default=SituacaoAtualizacao.DETECTADA, index=True
+    origem: Mapped[OrigemDeteccao] = mapped_column(EnumType(OrigemDeteccao), default=OrigemDeteccao.MANUAL)
+    situacao: Mapped[SituacaoAtualizacao] = mapped_column(EnumType(SituacaoAtualizacao), default=SituacaoAtualizacao.DETECTADA, index=True
     )
     titulo: Mapped[str] = mapped_column(String(300))
     resumo: Mapped[str | None] = mapped_column(Text)
@@ -219,11 +218,10 @@ class ImpactoNormativo(UUIDMixin, TimestampMixin, Base):
     atualizacao_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("atualizacoes_normativas.id"), index=True
     )
-    alvo_tipo: Mapped[AlvoImpacto] = mapped_column(String(30))
+    alvo_tipo: Mapped[AlvoImpacto] = mapped_column(EnumType(AlvoImpacto))
     alvo_ref: Mapped[str] = mapped_column(String(120))
     entidade_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("entidades.id"))
-    severidade: Mapped[SeveridadeImpacto] = mapped_column(
-        String(25), default=SeveridadeImpacto.REVISAO_RECOMENDADA
+    severidade: Mapped[SeveridadeImpacto] = mapped_column(EnumType(SeveridadeImpacto), default=SeveridadeImpacto.REVISAO_RECOMENDADA
     )
     descricao: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="ABERTO")  # ABERTO|TRATADO|DISPENSADO

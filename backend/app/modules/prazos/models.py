@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, TimestampMixin, UUIDMixin
 from app.core.enums import Prioridade, StatusPendencia, StatusPrazo, TipoPrazo
-from app.core.types import GUID, JSONType
+from app.core.types import EnumType, GUID, JSONType
 
 # §21 — janelas de alerta padrão. Parametrizáveis por cliente.
 JANELAS_ALERTA_PADRAO = [90, 60, 30, 15, 7, 3, 1]
@@ -19,14 +19,14 @@ class Prazo(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "prazos"
 
     entidade_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("entidades.id"), index=True)
-    tipo: Mapped[TipoPrazo] = mapped_column(String(30), index=True)
+    tipo: Mapped[TipoPrazo] = mapped_column(EnumType(TipoPrazo), index=True)
     descricao: Mapped[str] = mapped_column(String(300))
     data_base: Mapped[dt.date | None] = mapped_column(Date)
     data_limite: Mapped[dt.date] = mapped_column(Date, index=True)
     # §21 — prazos nunca presumidos: sempre com origem e fundamento declarados.
     origem: Mapped[str] = mapped_column(String(20), default="MANUAL")  # LEI|ESTATUTO|RCPJ|MANUAL
     fundamento: Mapped[str | None] = mapped_column(String(300))
-    status: Mapped[StatusPrazo] = mapped_column(String(20), default=StatusPrazo.ABERTO, index=True)
+    status: Mapped[StatusPrazo] = mapped_column(EnumType(StatusPrazo), default=StatusPrazo.ABERTO, index=True)
     janelas_alerta: Mapped[list] = mapped_column(JSONType(), default=lambda: list(JANELAS_ALERTA_PADRAO))
     alertas_disparados: Mapped[list] = mapped_column(JSONType(), default=list)
     evento_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("eventos.id"))
@@ -57,8 +57,8 @@ class Pendencia(UUIDMixin, TimestampMixin, Base):
     codigo: Mapped[str | None] = mapped_column(String(80), index=True)
     descricao: Mapped[str] = mapped_column(String(400))
     detalhamento: Mapped[str | None] = mapped_column(Text)
-    prioridade: Mapped[Prioridade] = mapped_column(String(15), default=Prioridade.MEDIA, index=True)
-    status: Mapped[StatusPendencia] = mapped_column(String(20), default=StatusPendencia.ABERTA, index=True)
+    prioridade: Mapped[Prioridade] = mapped_column(EnumType(Prioridade), default=Prioridade.MEDIA, index=True)
+    status: Mapped[StatusPendencia] = mapped_column(EnumType(StatusPendencia), default=StatusPendencia.ABERTA, index=True)
     responsavel_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("usuarios.id"))
     prazo_limite: Mapped[dt.date | None] = mapped_column(Date)
     resolvida_em: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))

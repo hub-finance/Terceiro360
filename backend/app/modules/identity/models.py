@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, TimestampMixin, UUIDMixin
 from app.core.enums import Plano
-from app.core.types import GUID, JSONType
+from app.core.types import EnumType, GUID, JSONType
 
 
 class Cliente(UUIDMixin, TimestampMixin, Base):
@@ -19,7 +19,7 @@ class Cliente(UUIDMixin, TimestampMixin, Base):
 
     nome: Mapped[str] = mapped_column(String(200))
     documento: Mapped[str | None] = mapped_column(String(20))
-    plano: Mapped[Plano] = mapped_column(String(20), default=Plano.BASICO)
+    plano: Mapped[Plano] = mapped_column(EnumType(Plano), default=Plano.BASICO)
     limite_entidades: Mapped[int] = mapped_column(default=1)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
 

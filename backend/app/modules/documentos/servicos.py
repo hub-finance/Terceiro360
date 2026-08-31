@@ -100,7 +100,82 @@ def montar_variaveis(db: Session, evento: Evento, ctx: ContextoValidacao) -> dic
     for chave, valor in (evento.dados or {}).items():
         variaveis[chave.upper()] = valor
 
+    # §53 — o que o sistema consegue deduzir, ele não pergunta.
+    variaveis.setdefault("TIPO_ASSEMBLEIA", _tipo_assembleia(evento))
+    if mandato:
+        representante = mandato.ocupante("PRESIDENTE") or (
+            mandato.membros[0] if mandato.membros else None
+        )
+        if representante:
+            variaveis.setdefault("CARGO_REPRESENTANTE", representante.cargo)
+            variaveis.setdefault("REPRESENTANTE", representante.nome)
+
+    # Quem já está no cadastro entra completo nos documentos, sem redigitação.
+    if variaveis.get("ELEITOS"):
+        variaveis["ELEITOS"] = _completar_pessoas(db, entidade, variaveis["ELEITOS"])
+
     return {k: v for k, v in variaveis.items() if v is not None}
+
+
+# Um ato de eleição, reforma ou destituição só acontece em assembleia; qual
+# delas depende do tipo do ato, e não precisa ser perguntado de novo.
+_ASSEMBLEIA_POR_ATO = {
+    "ASSEMBLEIA_ORDINARIA": "Ordinária",
+    "APROVACAO_CONTAS": "Ordinária",
+    "PRESTACAO_CONTAS": "Ordinária",
+}
+
+
+def _tipo_assembleia(evento: Evento) -> str | None:
+    informado = (evento.dados or {}).get("tipo_assembleia")
+    if informado:
+        return informado
+    tipo = str(evento.tipo)
+    if tipo in _ASSEMBLEIA_POR_ATO:
+        return _ASSEMBLEIA_POR_ATO[tipo]
+    if tipo in ("ELEICAO_DIRETORIA", "REELEICAO_DIRETORIA", "REFORMA_ESTATUTARIA",
+                "DESTITUICAO", "ASSEMBLEIA_EXTRAORDINARIA", "ALTERACAO_FINALIDADE",
+                "ALTERACAO_DENOMINACAO", "ALTERACAO_ORGAOS", "ALTERACAO_MANDATO",
+                "ALTERACAO_QUORUM", "DISSOLUCAO"):
+        return "Extraordinária"
+    return None
+
+
+def _completar_pessoas(db: Session, entidade: Entidade, pessoas: list) -> list:
+    """Enriquece a lista de eleitos com o que já existe no cadastro de pessoas."""
+    from app.modules.juridico.models import Pessoa
+
+    completados = []
+    for item in pessoas:
+        if not isinstance(item, dict):
+            completados.append(item)
+            continue
+        dados = dict(item)
+        registro = None
+        if dados.get("cpf"):
+            registro = db.scalar(
+                select(Pessoa).where(
+                    Pessoa.cliente_id == entidade.cliente_id, Pessoa.cpf == dados["cpf"]
+                )
+            )
+        if registro is None and dados.get("nome"):
+            registro = db.scalar(
+                select(Pessoa).where(
+                    Pessoa.cliente_id == entidade.cliente_id, Pessoa.nome == dados["nome"]
+                )
+            )
+        if registro is not None:
+            dados.setdefault("cpf", registro.cpf)
+            dados.setdefault("rg", registro.rg)
+            dados.setdefault("qualificacao", registro.qualificacao)
+            endereco = ", ".join(
+                p for p in (registro.logradouro, registro.numero, registro.bairro,
+                            registro.municipio, registro.uf) if p
+            )
+            if endereco:
+                dados.setdefault("endereco", endereco)
+        completados.append(dados)
+    return completados
 
 
 def _endereco(e: Entidade) -> str | None:

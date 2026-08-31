@@ -13,7 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, TimestampMixin, UUIDMixin
 from app.core.enums import FuncaoEclesiastica, TipoUnidadeEclesiastica
-from app.core.types import GUID, JSONType
+from app.core.types import EnumType, GUID, JSONType
 
 
 class UnidadeEclesiastica(UUIDMixin, TimestampMixin, Base):
@@ -22,7 +22,7 @@ class UnidadeEclesiastica(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "unidades_eclesiasticas"
 
     entidade_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("entidades.id"), index=True)
-    tipo: Mapped[TipoUnidadeEclesiastica] = mapped_column(String(30))
+    tipo: Mapped[TipoUnidadeEclesiastica] = mapped_column(EnumType(TipoUnidadeEclesiastica))
     nome: Mapped[str] = mapped_column(String(200))
     unidade_pai_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("unidades_eclesiasticas.id"))
     # Personalidade jurídica própria? Congregação normalmente não tem.
@@ -64,7 +64,7 @@ class Ministro(UUIDMixin, TimestampMixin, Base):
     entidade_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("entidades.id"), index=True)
     pessoa_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("pessoas.id"), index=True)
     unidade_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("unidades_eclesiasticas.id"))
-    funcao: Mapped[FuncaoEclesiastica] = mapped_column(String(30))
+    funcao: Mapped[FuncaoEclesiastica] = mapped_column(EnumType(FuncaoEclesiastica))
     data_ordenacao: Mapped[dt.date | None] = mapped_column(Date)
     credencial: Mapped[str | None] = mapped_column(String(80))
     orgao_credenciador: Mapped[str | None] = mapped_column(String(200))
