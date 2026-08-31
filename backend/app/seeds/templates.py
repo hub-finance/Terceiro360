@@ -446,7 +446,11 @@ TEMPLATES: tuple[TemplateSeed, ...] = (
                  fundamentos=("LRP_1973:art. 120", "LRP_1973:art. 121")),
     TemplateSeed("TERMO_RENUNCIA_PADRAO", "Termo de renúncia", "TERMO_RENUNCIA", TERMO_RENUNCIA,
                  tipos_evento=("RENUNCIA",)),
+    # Toda alteração estatutária pede o comparativo — mudar o nome é reforma
+    # tanto quanto reescrever um capítulo.
     TemplateSeed("QUADRO_COMPARATIVO_PADRAO", "Quadro comparativo de reforma estatutária",
                  "QUADRO_COMPARATIVO", QUADRO_COMPARATIVO,
-                 tipos_evento=("REFORMA_ESTATUTARIA",)),
+                 tipos_evento=("REFORMA_ESTATUTARIA", "ALTERACAO_FINALIDADE",
+                               "ALTERACAO_DENOMINACAO", "ALTERACAO_ORGAOS",
+                               "ALTERACAO_MANDATO", "ALTERACAO_QUORUM")),
 )

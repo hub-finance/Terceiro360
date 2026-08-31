@@ -162,3 +162,90 @@ export interface Dashboard {
     data: string | null;
   }[];
 }
+
+/* ─────────────────────────────────────────── Matriz de atos e questionário */
+
+export interface CampoQuestionario {
+  nome: string;
+  pergunta: string;
+  tipo: "data" | "texto" | "numero" | "opcao" | "lista" | "booleano" | "pessoas";
+  obrigatorio: boolean;
+  opcoes: string[];
+  ajuda: string | null;
+  /** Parâmetro do estatuto exibido ao lado do campo como referência (§52). */
+  referencia_estatutaria: string | null;
+}
+
+export interface Questionario {
+  tipo_evento: string;
+  titulo: string;
+  campos: CampoQuestionario[];
+}
+
+export type ExigeReforma = "SEMPRE" | "NUNCA" | "DEPENDE_DO_ESTATUTO" | "NAO_APLICAVEL";
+export type EspecieAssembleia =
+  | "ORDINARIA"
+  | "EXTRAORDINARIA"
+  | "CONFORME_ESTATUTO"
+  | "NAO_ASSEMBLEAR";
+
+export interface Ato {
+  tipo: string;
+  titulo: string;
+  categoria: string;
+  descricao: string;
+  orgao_competente: string;
+  especie_assembleia: EspecieAssembleia;
+  exige_reforma_estatutaria: ExigeReforma;
+  exige_convocacao_especifica: boolean;
+  chave_quorum: string | null;
+  efeito_registral: "REGISTRO" | "AVERBACAO" | "INTERNO";
+  assemblear: boolean;
+  documentos: string[];
+  fundamentos: { fonte: string; dispositivo: string }[];
+  parametros_relevantes: string[];
+  nota: string | null;
+  alertas: string[];
+}
+
+export interface AtoDetalhado extends Ato {
+  questionario: Questionario;
+  parametros: { chave: string; rotulo: string; pergunta: string; nota: string | null }[];
+}
+
+export interface Evento {
+  id: string;
+  tipo: string;
+  titulo: string | null;
+  status: string;
+  semaforo: Semaforo | null;
+  data_referencia: string | null;
+  dados: Record<string, unknown>;
+}
+
+export interface DocumentoResumo {
+  id: string;
+  tipo: string;
+  categoria: string;
+  titulo: string;
+  status: string;
+  versao_atual: number;
+  data: string | null;
+  evento_id: string | null;
+  origem: string;
+  template: string | null;
+  assinaturas_pendentes: number;
+}
+
+export interface ResultadoGeracao {
+  semaforo: Semaforo;
+  gerados: {
+    documento_id: string;
+    tipo: string;
+    titulo: string;
+    versao: number;
+    lacunas: string[];
+  }[];
+  sem_modelo_cadastrado: string[];
+  ressalvas: Achado[];
+}

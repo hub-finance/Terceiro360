@@ -141,6 +141,25 @@ def responder_questionario(
     return evento
 
 
+@router.get("/eventos/{evento_id}/validacao")
+def consultar_validacao(
+    evento_id: uuid.UUID,
+    sessao: Sessao = Depends(sessao_atual),
+    db: Session = Depends(get_db),
+):
+    """Avalia o ato sem gravar nada.
+
+    Existe separada do POST porque abrir a tela de um ato não deveria alterar
+    o ato. Quem grava o resultado é a validação explícita, e é ela que fica no
+    histórico.
+    """
+    evento = _evento_do_escopo(db, sessao, evento_id)
+    ctx = montar_contexto(db, evento)
+    resultado = validar(ctx).to_dict()
+    resultado["campos_faltantes"] = campos_faltantes(str(evento.tipo), evento.dados or {})
+    return resultado
+
+
 @router.post("/eventos/{evento_id}/validar")
 def validar_evento(
     evento_id: uuid.UUID,
