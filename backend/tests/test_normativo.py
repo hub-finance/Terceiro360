@@ -154,3 +154,23 @@ def test_helpers_de_tempo_normalizam():
     assert garantir_utc(dt.datetime(2026, 1, 1)).tzinfo is dt.timezone.utc
     assert garantir_utc(None) is None
     assert dias_entre(dt.datetime(2026, 1, 1), dt.datetime(2026, 1, 11, tzinfo=dt.timezone.utc)) == 10
+
+
+def test_nenhuma_coluna_de_instante_nasce_sem_fuso():
+    """Varredura contra a recaída: `utcnow()` é ingênuo e as colunas têm fuso.
+
+    A mistura só quebra em PostgreSQL, e só quando alguém compara as duas —
+    tarde demais para descobrir. Mais barato é proibir a chamada.
+    """
+    import pathlib
+
+    raiz = pathlib.Path(__file__).resolve().parent.parent / "app"
+    culpados = [
+        f"{caminho.relative_to(raiz)}:{numero}"
+        for caminho in raiz.rglob("*.py")
+        for numero, linha in enumerate(caminho.read_text().splitlines(), 1)
+        if "utcnow" in linha
+    ]
+    assert not culpados, (
+        "use app.core.tempo.agora() em vez de utcnow(): " + ", ".join(culpados)
+    )

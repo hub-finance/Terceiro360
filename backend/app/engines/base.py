@@ -9,6 +9,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.core.tempo import agora
 from app.core.enums import OrigemDado, Semaforo, StatusParametro
 
 
@@ -102,7 +103,7 @@ class ResultadoValidacao:
 
     achados: list[Achado] = field(default_factory=list)
     parametros: dict[str, ParametroResolvido] = field(default_factory=dict)
-    avaliado_em: dt.datetime = field(default_factory=dt.datetime.utcnow)
+    avaliado_em: dt.datetime = field(default_factory=agora)
 
     @property
     def semaforo(self) -> Semaforo:

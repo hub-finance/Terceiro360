@@ -8,6 +8,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, TimestampMixin, UUIDMixin
+from app.core.tempo import agora
 from app.core.types import GUID, JSONType
 
 
@@ -21,7 +22,7 @@ class LogAcesso(UUIDMixin, Base):
     ip: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(String(300))
     resultado: Mapped[str] = mapped_column(String(20), default="OK")
-    criado_em: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow, index=True)
+    criado_em: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=agora, index=True)
 
 
 class RegistroAuditoria(UUIDMixin, Base):
@@ -37,4 +38,4 @@ class RegistroAuditoria(UUIDMixin, Base):
     depois: Mapped[dict | None] = mapped_column(JSONType())
     usuario_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("usuarios.id"))
     motivo: Mapped[str | None] = mapped_column(Text)
-    criado_em: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow, index=True)
+    criado_em: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=agora, index=True)
