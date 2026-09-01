@@ -342,3 +342,116 @@ def test_ato_bloqueado_pode_ser_gerado_com_decisao_explicita(cliente_api, auth, 
     )
     assert r.status_code == 200
     assert r.json()["semaforo"] == "BLOQUEADO"
+
+
+# ------------------------------------------------------ Exportação e protocolo
+
+
+def test_documento_gerado_baixa_em_docx_e_pdf(cliente_api, auth, entidade_id):
+    documentos = cliente_api.get(
+        f"/api/v1/entidades/{entidade_id}/documentos", headers=auth
+    ).json()
+    ata = next(d for d in documentos if d["tipo"] == "ATA")
+
+    docx = cliente_api.get(
+        f"/api/v1/documentos/{ata['id']}/exportar", headers=auth, params={"formato": "docx"}
+    )
+    assert docx.status_code == 200, docx.text
+    assert docx.content[:2] == b"PK"
+    assert "attachment" in docx.headers["content-disposition"]
+    # Nome sem acento: o arquivo vai por e-mail e pendrive até o balcão.
+    assert ".docx" in docx.headers["content-disposition"]
+    assert docx.headers["content-disposition"].isascii()
+
+    pdf = cliente_api.get(
+        f"/api/v1/documentos/{ata['id']}/exportar", headers=auth, params={"formato": "pdf"}
+    )
+    assert pdf.status_code == 200
+    assert pdf.content[:5] == b"%PDF-"
+
+    assert cliente_api.get(
+        f"/api/v1/documentos/{ata['id']}/exportar", headers=auth, params={"formato": "odt"}
+    ).status_code == 422
+
+
+def test_exigencia_do_cartorio_pode_ser_cumprida_e_o_registro_segue(
+    cliente_api, auth, entidade_id
+):
+    """Antes, um protocolo que entrava em exigência não saía mais: o registro
+    era barrado enquanto houvesse exigência aberta e não havia como fechá-la."""
+    eventos = cliente_api.get(f"/api/v1/entidades/{entidade_id}/eventos", headers=auth).json()
+    evento = eventos[0]
+
+    protocolo_id = cliente_api.post(
+        f"/api/v1/entidades/{entidade_id}/protocolos",
+        headers=auth,
+        json={"evento_id": evento["id"], "numero": "2026/EXIG",
+              "data_protocolo": HOJE.isoformat()},
+    ).json()["id"]
+
+    r = cliente_api.post(
+        f"/api/v1/protocolos/{protocolo_id}/exigencias",
+        headers=auth,
+        json={"descricao": "Reconhecer firma do presidente na ata"},
+    )
+    assert r.json()["status"] == "EM_EXIGENCIA"
+
+    barrado = cliente_api.post(
+        f"/api/v1/protocolos/{protocolo_id}/registrar",
+        headers=auth,
+        json={"data_registro": HOJE.isoformat(), "numero_registro": "999"},
+    )
+    assert barrado.status_code == 409
+
+    cumprida = cliente_api.post(
+        f"/api/v1/protocolos/{protocolo_id}/exigencias/0/cumprir",
+        headers=auth,
+        json={"observacao": "Firma reconhecida em 2º Tabelionato"},
+    ).json()
+    assert cumprida["exigencias_abertas"] == 0
+    # Quem declara registrado é o oficial, não o sistema.
+    assert cumprida["status"] == "PROTOCOLADO"
+    assert cumprida["exigencias"][0]["cumprida_por"]
+
+    registrado = cliente_api.post(
+        f"/api/v1/protocolos/{protocolo_id}/registrar",
+        headers=auth,
+        json={"data_registro": HOJE.isoformat(), "numero_registro": "999", "livro": "A-5"},
+    )
+    assert registrado.status_code == 200
+    assert registrado.json()["status"] == "REGISTRADO"
+
+    assert cliente_api.post(
+        f"/api/v1/protocolos/{protocolo_id}/exigencias/9/cumprir", headers=auth, json={}
+    ).status_code == 404
+
+
+def test_agendador_roda_pela_api_e_deixa_rastro(cliente_api, auth, entidade_id):
+    r = cliente_api.post("/api/v1/agendador/executar/prazos", headers=auth)
+    assert r.status_code == 200, r.text
+    assert r.json()["resultado"] in ("OK", "PARCIAL")
+
+    execucoes = cliente_api.get("/api/v1/agendador/execucoes", headers=auth).json()
+    assert execucoes[0]["tarefa"] == "PRAZOS"
+    assert execucoes[0]["acionada_por"] == "MANUAL"
+
+    prazos = cliente_api.get(
+        f"/api/v1/entidades/{entidade_id}/prazos/registrados", headers=auth
+    ).json()
+    assert prazos, "a varredura materializou a agenda da entidade"
+    assert all(p["origem"] for p in prazos)
+
+    # O alerta de prazo chega a quem opera o sistema.
+    notificacoes = cliente_api.get("/api/v1/notificacoes", headers=auth).json()
+    if notificacoes:
+        lida = cliente_api.post(
+            f"/api/v1/notificacoes/{notificacoes[0]['id']}/lida", headers=auth
+        )
+        assert lida.json()["lida"] is True
+
+
+def test_central_de_pendencias_junta_entidade_e_base_normativa(cliente_api, auth):
+    pendencias = cliente_api.get("/api/v1/pendencias", headers=auth).json()
+    assert isinstance(pendencias, list)
+    for p in pendencias:
+        assert p["prioridade"] in ("URGENTE", "ALTA", "MEDIA", "BAIXA")

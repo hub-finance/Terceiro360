@@ -86,7 +86,7 @@ def test_migracoes_sobem_e_descem(banco_migrado):
             "select count(*) from information_schema.tables "
             "where table_schema='public' and table_name <> 'alembic_version'"
         )).scalar()
-    assert total == 51, f"esperava 51 tabelas, o banco tem {total}"
+    assert total == 52, f"esperava 52 tabelas, o banco tem {total}"
 
 
 def test_tipos_nativos_do_postgres_foram_usados(banco_migrado):

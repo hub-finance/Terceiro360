@@ -60,11 +60,14 @@ Documentação da API em `http://localhost:8000/docs`.
 Acesso de demonstração: `admin@demo.terceiro360.local` / `terceiro360`.
 
 ```bash
-make teste        # 63 testes em SQLite, ~4s
-make teste-pg     # 66 testes em PostgreSQL — rode antes de publicar
+make teste        # 128 testes em SQLite, ~10s
+make teste-pg     # 131 testes em PostgreSQL — rode antes de publicar
+make varrer       # roda o agendador uma vez (vigílias + prazos)
 ```
 
-Detalhes de banco e migrações em [`docs/banco-e-migracoes.md`](docs/banco-e-migracoes.md).
+- Banco e migrações: [`docs/banco-e-migracoes.md`](docs/banco-e-migracoes.md)
+- Agendador — vigílias e alertas de prazo: [`docs/agendador.md`](docs/agendador.md)
+- Exportação em DOCX e PDF: [`docs/exportacao.md`](docs/exportacao.md)
 
 ## Arquitetura
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,6 +18,12 @@ from app.core.enums import (
     StatusDocumento,
     TipoAssinatura,
     TipoDocumento,
+)
+from app.engines.exportacao.motor import (
+    MARCADOR_LACUNA,
+    nome_de_arquivo,
+    para_docx,
+    para_pdf,
 )
 from app.engines.templates.motor import (
     marcar_lacunas_html,
@@ -131,6 +137,58 @@ def obter_versao(
         "lacunas": versao.lacunas, "dados_snapshot": versao.dados_snapshot,
         "hash": versao.hash_conteudo,
     }
+
+
+FORMATOS = {
+    "docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", para_docx),
+    "pdf": ("application/pdf", para_pdf),
+}
+
+
+@router.get("/documentos/{documento_id}/exportar")
+def exportar(
+    documento_id: uuid.UUID,
+    formato: str = "docx",
+    sessao: Sessao = Depends(sessao_atual),
+    db: Session = Depends(get_db),
+):
+    """Baixa o documento pronto para levar ao cartório (§19).
+
+    O rodapé carrega a ressalva de minuta e a versão exportada. Documento
+    jurídico circula por e-mail e chega ao cartório fora de contexto: quem
+    recebe precisa saber, olhando só o papel, que aquilo é uma peça gerada e
+    qual versão está lendo (§47).
+    """
+    if formato not in FORMATOS:
+        raise HTTPException(422, "Formato inválido. Use docx ou pdf.")
+
+    documento = _documento_do_escopo(db, sessao, documento_id)
+    versao = next((v for v in documento.versoes if v.numero == documento.versao_atual), None)
+    if versao is None or not versao.conteudo:
+        raise HTTPException(
+            409, "Este documento ainda não tem conteúdo gerado. Gere os documentos do ato antes."
+        )
+
+    entidade = db.get(Entidade, documento.entidade_id)
+    ressalva = (
+        f"{entidade.razao_social} · {documento.titulo} · versão {versao.numero} · "
+        f"minuta gerada pelo TERCEIRO360, sujeita a revisão de profissional habilitado"
+    )
+    if MARCADOR_LACUNA in versao.conteudo:
+        ressalva = "DOCUMENTO INCOMPLETO — há dados não informados · " + ressalva
+
+    tipo_mime, desenhar = FORMATOS[formato]
+    arquivo = desenhar(versao.conteudo, documento.titulo, rodape=ressalva)
+    nome = nome_de_arquivo(f"{documento.titulo} v{versao.numero}", formato)
+    return Response(
+        content=arquivo,
+        media_type=tipo_mime,
+        headers={
+            "Content-Disposition": f'attachment; filename="{nome}"',
+            # O front precisa ler o nome para nomear o download.
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
 
 
 class StatusIn(BaseModel):

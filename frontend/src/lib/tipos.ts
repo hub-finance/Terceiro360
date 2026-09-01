@@ -228,11 +228,11 @@ export interface DocumentoResumo {
   tipo: string;
   categoria: string;
   titulo: string;
-  status: string;
+  status: StatusDocumento;
   versao_atual: number;
   data: string | null;
   evento_id: string | null;
-  origem: string;
+  origem: string | null;
   template: string | null;
   assinaturas_pendentes: number;
 }
@@ -341,4 +341,163 @@ export interface VinculoNormativo {
   fonte_chave: string;
   dispositivo: string | null;
   observacao: string | null;
+}
+
+/* ─────────────────────────────────────────── Acervo documental (etapa 2.7) */
+
+export type StatusDocumento =
+  | "RASCUNHO" | "GERADO" | "REVISADO" | "APROVADO"
+  | "ASSINADO" | "PROTOCOLADO" | "REGISTRADO" | "ARQUIVADO" | "CANCELADO";
+
+export interface Assinatura {
+  id: string;
+  signatario: string;
+  papel: string | null;
+  tipo: string;
+  status: "PENDENTE" | "ASSINADO" | "RECUSADO";
+  reconhecimento_firma: boolean;
+  data: string | null;
+}
+
+export interface VersaoDocumento {
+  numero: number;
+  criado_em: string;
+  motivo: string | null;
+  lacunas: number;
+  hash: string | null;
+}
+
+export interface DocumentoDetalhado {
+  id: string;
+  tipo: string;
+  titulo: string;
+  status: StatusDocumento;
+  versao_atual: number;
+  conteudo: string | null;
+  lacunas: string[];
+  fundamentos: string[];
+  versoes: VersaoDocumento[];
+  assinaturas: Assinatura[];
+}
+
+/* ───────────────────────────────────────────────── Protocolos (etapa 2.7) */
+
+export interface Exigencia {
+  descricao: string;
+  prazo: string | null;
+  cumprida: boolean;
+  lancada_em?: string;
+  cumprida_em?: string;
+  cumprida_por?: string;
+  observacao?: string | null;
+}
+
+export interface Protocolo {
+  id: string;
+  numero: string | null;
+  status: "PREPARACAO" | "PROTOCOLADO" | "EM_EXIGENCIA" | "REGISTRADO" | "DEVOLVIDO";
+  evento_id: string;
+  data_protocolo: string | null;
+  data_registro: string | null;
+  numero_registro: string | null;
+  livro: string | null;
+  folha: string | null;
+  exigencias: Exigencia[];
+  exigencias_abertas: number;
+}
+
+/* ────────────────────────────────────── Diretoria e associados (etapa 2.7) */
+
+export interface MembroMandato {
+  pessoa: string;
+  cpf: string | null;
+  cargo: string;
+  situacao: "ATIVO" | "RENUNCIOU" | "DESTITUIDO" | "FALECIDO" | "AFASTADO";
+}
+
+export interface Mandato {
+  id: string;
+  designacao: string;
+  orgao: string;
+  data_inicio: string;
+  data_fim: string;
+  vigente: boolean;
+  encerrado: boolean;
+  membros: MembroMandato[];
+}
+
+export interface NoGovernanca {
+  id: string;
+  nome: string;
+  tipo: string;
+  codigo: string | null;
+  responsaveis: { nome: string; cargo: string }[];
+  mandato: string | null;
+  filhos: NoGovernanca[];
+}
+
+export interface MapaGovernanca {
+  entidade: string;
+  orgaos: NoGovernanca[];
+}
+
+export interface Associado {
+  id: string;
+  pessoa: string;
+  cpf: string | null;
+  categoria: string | null;
+  situacao: "ATIVO" | "SUSPENSO" | "DESLIGADO" | "LICENCIADO";
+  direito_voto: boolean;
+  elegivel: boolean;
+  apto_hoje: boolean;
+  data_admissao: string | null;
+}
+
+export interface QuadroAssociados {
+  total: number;
+  aptos_a_votar: number;
+  associados: Associado[];
+}
+
+/* ───────────────────────────── Prazos, pendências e agendador (bloco 3) */
+
+export interface PrazoRegistrado {
+  id: string;
+  tipo: string;
+  descricao: string;
+  data_limite: string;
+  dias_restantes: number;
+  status: "ABERTO" | "CUMPRIDO" | "VENCIDO" | "CANCELADO";
+  origem: string;
+  fundamento: string | null;
+  alertas_disparados: number[];
+  chave: string | null;
+}
+
+export interface PendenciaAberta {
+  id: string;
+  tipo: string;
+  codigo: string | null;
+  descricao: string;
+  detalhamento: string | null;
+  prioridade: Prioridade;
+  status: string;
+  origem: string;
+  entidade: string | null;
+  entidade_id: string | null;
+  prazo_limite: string | null;
+  criado_em: string;
+}
+
+export interface ExecucaoAgendador {
+  id: string;
+  tarefa: "VIGILIAS" | "PRAZOS";
+  resultado: "OK" | "PARCIAL" | "ERRO";
+  iniciada_em: string;
+  concluida_em: string | null;
+  duracao_s: number | null;
+  numeros: Record<string, number>;
+  falhas: { alvo: string; erro: string }[];
+  detalhe: string | null;
+  acionada_por: string;
 }

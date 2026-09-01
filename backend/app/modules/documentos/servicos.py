@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import re
 import uuid
 
 from sqlalchemy import select
@@ -68,8 +69,10 @@ def montar_variaveis(db: Session, evento: Evento, ctx: ContextoValidacao) -> dic
         "ESTATUTO_FOLHA": versao.folha if versao else None,
         # Registro
         "RCPJ": ctx.rcpj.nome if ctx.rcpj else None,
-        # Ato
-        "TIPO_ATO": str(evento.tipo),
+        # Ato — o título da matriz, não o código do enum: este texto vai
+        # impresso no requerimento que chega ao balcão do cartório, e
+        # "ALTERACAO_DENOMINACAO" numa peça jurídica é erro de acabamento.
+        "TIPO_ATO": _titulo_do_ato(evento.tipo),
         "DATA_ATO": evento.data_referencia,
         "DATA_HOJE": dt.date.today(),
         # Governança
@@ -203,6 +206,19 @@ def _endereco(e: Entidade) -> str | None:
 def _param_valor(ctx: ContextoValidacao, chave: str):
     p = ctx.param(chave)
     return p.valor if p.utilizavel else None
+
+
+def _titulo_do_ato(tipo) -> str:
+    """"ALTERACAO_DENOMINACAO" -> "Alteração de denominação".
+
+    O parêntese que o catálogo usa para ajudar a achar o ato ("(mudança de
+    nome)") não vai para a peça: ali ele é sinônimo de busca, não parte do
+    nome do ato.
+    """
+    definicao = ato(str(tipo))
+    if definicao is None:
+        return str(tipo).replace("_", " ").capitalize()
+    return re.sub(r"\s*\([^)]*\)\s*$", "", definicao.titulo)
 
 
 def _param_bool(ctx: ContextoValidacao, chave: str) -> bool | None:

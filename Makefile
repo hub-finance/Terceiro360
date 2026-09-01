@@ -2,7 +2,7 @@
 PY := backend/.venv/bin/python
 PG_TESTE ?= postgresql+psycopg://postgres@127.0.0.1:55432/terceiro360_teste
 
-.PHONY: ajuda instalar migrar migracao carga rodar teste teste-pg verificar limpar
+.PHONY: ajuda instalar migrar migracao carga rodar varrer teste teste-pg verificar limpar
 
 ajuda:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "};{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -21,6 +21,9 @@ carga: ## Carrega perfis, base normativa e modelos (use demo=1 para dados de exe
 
 rodar: ## Sobe a API em modo de desenvolvimento
 	cd backend && .venv/bin/uvicorn app.main:app --reload
+
+varrer: ## Roda o agendador uma vez (make varrer t=tudo|vigilias|prazos)
+	cd backend && .venv/bin/python -m app.agendador $(or $(t),tudo)
 
 teste: ## Roda a suíte em SQLite (rápido)
 	cd backend && .venv/bin/python -m pytest tests -q

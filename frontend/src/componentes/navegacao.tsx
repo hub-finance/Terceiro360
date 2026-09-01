@@ -19,8 +19,8 @@ const SECOES: {
     titulo: "Visão geral",
     itens: [
       { rotulo: "Painel", href: "", pronto: true },
-      { rotulo: "Pendências", href: "/pendencias", pronto: false },
-      { rotulo: "Prazos", href: "/prazos", pronto: false },
+      { rotulo: "Pendências", href: "/pendencias", pronto: true, absoluto: true },
+      { rotulo: "Prazos", href: "/prazos", pronto: true },
     ],
   },
   {
@@ -28,15 +28,15 @@ const SECOES: {
     itens: [
       { rotulo: "Estatuto", href: "/estatuto", pronto: true },
       { rotulo: "Atos", href: "/atos", pronto: true },
-      { rotulo: "Diretoria", href: "/diretoria", pronto: false },
-      { rotulo: "Associados", href: "/associados", pronto: false },
+      { rotulo: "Diretoria", href: "/diretoria", pronto: true },
+      { rotulo: "Associados", href: "/associados", pronto: true },
     ],
   },
   {
     titulo: "Documentos",
     itens: [
-      { rotulo: "Acervo", href: "/documentos", pronto: false },
-      { rotulo: "Protocolos", href: "/protocolos", pronto: false },
+      { rotulo: "Acervo", href: "/documentos", pronto: true },
+      { rotulo: "Protocolos", href: "/protocolos", pronto: true },
       { rotulo: "Modelos", href: "/modelos", pronto: false },
     ],
   },

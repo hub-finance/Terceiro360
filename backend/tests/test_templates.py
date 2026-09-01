@@ -80,3 +80,14 @@ def test_numero_por_extenso():
 def test_template_com_sintaxe_invalida_nao_passa():
     ok, erro = validar_template("{% if X %} sem fim")
     assert ok is False and erro
+
+
+def test_requerimento_nao_leva_codigo_de_enum_ao_cartorio():
+    """O tipo do ato sai por extenso na peça, não como "ALTERACAO_DENOMINACAO"."""
+    from app.core.enums import TipoEvento
+    from app.modules.documentos.servicos import _titulo_do_ato
+
+    assert _titulo_do_ato(TipoEvento.ALTERACAO_DENOMINACAO) == "Alteração de denominação"
+    assert _titulo_do_ato(TipoEvento.ELEICAO_DIRETORIA) == "Eleição de diretoria"
+    # Tipo fora da matriz não quebra a geração: cai numa forma legível.
+    assert _titulo_do_ato("ATO_QUE_NAO_EXISTE") == "Ato que nao existe"

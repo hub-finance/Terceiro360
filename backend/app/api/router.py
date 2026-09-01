@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 
 from app.api.rotas import (
+    agendador,
     auth,
     cadastros,
     documentos,
@@ -16,6 +17,7 @@ from app.api.rotas import (
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
+api_router.include_router(agendador.router)
 api_router.include_router(entidades.router)
 api_router.include_router(estatutos.router)
 api_router.include_router(cadastros.router)

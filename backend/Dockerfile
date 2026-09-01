@@ -7,9 +7,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# libpq é exigida pelo psycopg; o resto vem das rodas.
+# libpq é exigida pelo psycopg; o resto vem das rodas. A Liberation Serif é
+# usada na exportação em PDF — sem uma fonte Unicode, o gerador cai no latin-1
+# e troca travessão e aspas curvas por equivalentes ASCII.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libpq5 curl \
+ && apt-get install -y --no-install-recommends \
+      libpq5 curl fonts-liberation \
  && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./

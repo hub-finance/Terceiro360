@@ -256,6 +256,58 @@ def lancar_exigencia(
     return {"id": str(protocolo.id), "status": str(protocolo.status), "exigencias": exigencias}
 
 
+class CumprimentoIn(BaseModel):
+    observacao: str | None = None
+    data_cumprimento: dt.date | None = None
+
+
+@router.post("/protocolos/{protocolo_id}/exigencias/{indice}/cumprir")
+def cumprir_exigencia(
+    protocolo_id: uuid.UUID,
+    indice: int,
+    dados: CumprimentoIn,
+    sessao: Sessao = Depends(exigir("registral:protocolo:editar")),
+    db: Session = Depends(get_db),
+):
+    """Dá baixa numa exigência do cartório.
+
+    Sem isto o protocolo entrava em EM_EXIGENCIA e não saía mais: o registro
+    é barrado enquanto houver exigência aberta e não havia como fechá-la.
+    O índice identifica a exigência porque elas são uma lista JSON ordenada —
+    o cartório as numera na intimação, e a ordem é a mesma.
+    """
+    protocolo = _protocolo_do_escopo(db, sessao, protocolo_id)
+    exigencias = list(protocolo.exigencias or [])
+    if not 0 <= indice < len(exigencias):
+        raise HTTPException(404, "Exigência não encontrada neste protocolo.")
+
+    exigencia = dict(exigencias[indice])
+    if exigencia.get("cumprida"):
+        raise HTTPException(409, "Esta exigência já estava cumprida.")
+    exigencia.update({
+        "cumprida": True,
+        "cumprida_em": (dados.data_cumprimento or dt.date.today()).isoformat(),
+        "cumprida_por": sessao.usuario.nome,
+        "observacao": dados.observacao,
+    })
+    exigencias[indice] = exigencia
+    protocolo.exigencias = exigencias
+
+    # Cumprida a última, o protocolo volta a aguardar o cartório: quem decide
+    # se está registrado é o oficial, não o sistema.
+    abertas = [e for e in exigencias if not e.get("cumprida")]
+    if not abertas:
+        protocolo.status = StatusProtocolo.PROTOCOLADO
+    db.add(protocolo)
+    db.commit()
+    return {
+        "id": str(protocolo.id),
+        "status": str(protocolo.status),
+        "exigencias_abertas": len(abertas),
+        "exigencias": exigencias,
+    }
+
+
 class RegistroIn(BaseModel):
     data_registro: dt.date
     numero_registro: str

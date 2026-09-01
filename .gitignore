@@ -31,5 +31,10 @@ dist/
 frontend/.next/
 frontend/node_modules/
 frontend/next-env.d.ts
-frontend/*.mjs
 frontend/tsconfig.tsbuildinfo
+
+# Scripts de verificação no navegador, escritos e descartados a cada etapa.
+# Não use "frontend/*.mjs": esse padrão engole o postcss.config.mjs, e sem ele
+# o Tailwind não roda — a aplicação inteira sai sem estilo e nada no build acusa.
+frontend/verifica*.mjs
+frontend/fluxo*.mjs

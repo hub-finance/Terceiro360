@@ -204,3 +204,152 @@ export async function tratarImpacto(impactoId: string, dispensado = false): Prom
     return { ok: false, mensagem: erro instanceof ErroApi ? erro.message : "Falha ao tratar." };
   }
 }
+
+/* ─────────────────────────────────── Acervo, protocolos e agenda (2.7 / 3) */
+
+export async function mudarStatusDocumento(
+  documentoId: string,
+  status: string,
+  caminho: string,
+): Promise<Resultado> {
+  try {
+    await chamarApi(`/documentos/${documentoId}/status`, {
+      method: "POST",
+      corpo: { status },
+    });
+    revalidatePath(caminho);
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao mudar o status.",
+    };
+  }
+}
+
+export async function registrarAssinatura(
+  assinaturaId: string,
+  caminho: string,
+  provedor?: string,
+): Promise<Resultado> {
+  try {
+    await chamarApi(`/assinaturas/${assinaturaId}/registrar`, {
+      method: "POST",
+      corpo: { provedor: provedor || null, evidencia: {} },
+    });
+    revalidatePath(caminho);
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao registrar a assinatura.",
+    };
+  }
+}
+
+export async function adicionarSignatario(
+  documentoId: string,
+  dados: { nome_signatario: string; papel?: string; exige_reconhecimento_firma?: boolean },
+  caminho: string,
+): Promise<Resultado> {
+  try {
+    await chamarApi(`/documentos/${documentoId}/assinaturas`, { method: "POST", corpo: dados });
+    revalidatePath(caminho);
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao incluir o signatário.",
+    };
+  }
+}
+
+export async function lancarExigencia(
+  protocoloId: string,
+  dados: { descricao: string; prazo?: string | null },
+  caminho: string,
+): Promise<Resultado> {
+  try {
+    await chamarApi(`/protocolos/${protocoloId}/exigencias`, {
+      method: "POST",
+      corpo: { descricao: dados.descricao, prazo: dados.prazo || null },
+    });
+    revalidatePath(caminho);
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao lançar a exigência.",
+    };
+  }
+}
+
+export async function cumprirExigencia(
+  protocoloId: string,
+  indice: number,
+  observacao: string,
+  caminho: string,
+): Promise<Resultado> {
+  try {
+    await chamarApi(`/protocolos/${protocoloId}/exigencias/${indice}/cumprir`, {
+      method: "POST",
+      corpo: { observacao: observacao || null },
+    });
+    revalidatePath(caminho);
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao dar baixa na exigência.",
+    };
+  }
+}
+
+export async function concluirRegistro(
+  protocoloId: string,
+  dados: { data_registro: string; numero_registro: string; livro?: string; folha?: string },
+  caminho: string,
+): Promise<Resultado> {
+  try {
+    await chamarApi(`/protocolos/${protocoloId}/registrar`, { method: "POST", corpo: dados });
+    revalidatePath(caminho);
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao registrar.",
+    };
+  }
+}
+
+export async function resolverPendencia(pendenciaId: string, caminho: string): Promise<Resultado> {
+  try {
+    await chamarApi(`/pendencias/${pendenciaId}/resolver`, { method: "POST" });
+    revalidatePath(caminho);
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao resolver a pendência.",
+    };
+  }
+}
+
+export async function rodarVarredura(
+  tarefa: "vigilias" | "prazos",
+  caminho: string,
+): Promise<Resultado & { detalhe?: string }> {
+  try {
+    const r = await chamarApi<{ detalhe: string; resultado: string }>(
+      `/agendador/executar/${tarefa}`,
+      { method: "POST" },
+    );
+    revalidatePath(caminho);
+    return { ok: true, detalhe: `${r.resultado}: ${r.detalhe}` };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao rodar a varredura.",
+    };
+  }
+}

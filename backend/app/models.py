@@ -54,6 +54,7 @@ from app.modules.igrejas.models import (  # noqa: F401
     UnidadeEclesiastica,
 )
 from app.modules.compliance.models import LogAcesso, RegistroAuditoria  # noqa: F401
+from app.modules.agendador.models import ExecucaoTarefa  # noqa: F401
 from app.modules.ia.models import AnaliseIA, SugestaoIA  # noqa: F401
 
 __all__ = ["Base"]
