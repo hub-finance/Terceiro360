@@ -40,24 +40,29 @@ e modelos que dependiam da redação antiga.
 
 ## Rodando
 
-Com Docker — sobe o PostgreSQL, aplica as migrações e inicia a API:
+Com Docker — sobe o PostgreSQL, aplica as migrações, e inicia a API e o painel:
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 docker compose run --rm api python -m app.seeds --demo
 ```
 
-Sem Docker:
+Pronto: **http://localhost:3000**
+
+Sem Docker (precisa de PostgreSQL, Python 3.11+ e Node 20+):
 
 ```bash
 make instalar
 cp backend/.env.example backend/.env      # ajuste T360_DATABASE_URL
 make migrar && make carga demo=1
-make rodar
+make rodar                                # API em :8000
+
+cd frontend && cp .env.example .env
+npm install && npm run dev                # painel em :3000
 ```
 
-Documentação da API em `http://localhost:8000/docs`.
 Acesso de demonstração: `admin@demo.terceiro360.local` / `terceiro360`.
+Documentação da API em `http://localhost:8000/docs` (fechada em produção).
 
 ```bash
 make teste        # 153 testes em SQLite, ~45s
