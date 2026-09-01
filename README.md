@@ -75,7 +75,8 @@ make varrer       # roda o agendador uma vez (vigílias + prazos)
 - Exportação em DOCX e PDF: [`docs/exportacao.md`](docs/exportacao.md)
 - Segurança e LGPD: [`docs/seguranca.md`](docs/seguranca.md)
 - **Rodar no Windows, passo a passo**: [`docs/instalacao-windows.md`](docs/instalacao-windows.md)
-- Publicação (Supabase + API + painel): [`docs/publicacao.md`](docs/publicacao.md)
+- **Publicar em ~20 min, passo a passo**: [`docs/publicar-passo-a-passo.md`](docs/publicar-passo-a-passo.md)
+- Publicação — detalhes e armadilhas: [`docs/publicacao.md`](docs/publicacao.md)
 
 ## Arquitetura
 

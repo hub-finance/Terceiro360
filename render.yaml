@@ -1,0 +1,63 @@
+# Publicação no Render — "blueprint".
+#
+# Com este arquivo, publicar deixa de ser uma sequência de formulários: no
+# Render, em New → Blueprint, apontando para este repositório, ele cria os dois
+# serviços já configurados. Só duas informações ficam para você preencher, e
+# elas são justamente as que não podem estar num arquivo versionado: a string
+# de conexão do Supabase e as chaves.
+#
+# O banco NÃO está aqui de propósito: ele é o Supabase, em São Paulo.
+# Veja docs/publicacao.md.
+
+services:
+  - type: web
+    name: terceiro360-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /saude
+    envVars:
+      # Cole a string do **Transaction pooler** do Supabase (porta 6543).
+      # `sync: false` = o Render pergunta na hora, e o valor nunca entra no
+      # repositório.
+      - key: T360_DATABASE_URL
+        sync: false
+
+      # Geradas pelo próprio Render, uma vez, e guardadas por ele.
+      # ATENÇÃO: anote T360_CHAVE_DADOS num cofre assim que for gerada. Ela
+      # cifra os CPFs; perdê-la torna os dados gravados ilegíveis para sempre.
+      - key: T360_SECRET_KEY
+        generateValue: true
+      - key: T360_CHAVE_DADOS
+        generateValue: true
+
+      - key: T360_ENVIRONMENT
+        value: production
+      - key: T360_DEBUG
+        value: "false"
+
+      # Deixe "true" na primeira subida para carregar perfis, base normativa e
+      # modelos. Depois pode virar "false" — é idempotente de qualquer forma.
+      - key: T360_CARGA_INICIAL
+        value: "true"
+
+      # Preencha com o endereço do painel depois que ele subir, no formato
+      # ["https://terceiro360-painel.onrender.com"]. Sem isto o navegador
+      # bloqueia as chamadas.
+      - key: T360_CORS_ORIGENS
+        sync: false
+
+  - type: web
+    name: terceiro360-painel
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    envVars:
+      # Endereço interno da API, preenchido pelo próprio Render.
+      - key: API_URL
+        fromService:
+          type: web
+          name: terceiro360-api
+          property: hostport
