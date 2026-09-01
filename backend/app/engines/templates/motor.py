@@ -12,6 +12,7 @@ Não é substituição cega de variáveis:
 from __future__ import annotations
 
 import datetime as dt
+import html
 import re
 from dataclasses import dataclass, field
 
@@ -210,9 +211,17 @@ def validar_template(corpo: str) -> tuple[bool, str | None]:
 
 
 def marcar_lacunas_html(texto: str) -> str:
-    """Realça as lacunas para revisão na tela."""
+    """Realça as lacunas para revisão na tela.
+
+    Escapa **antes** de marcar. O texto do documento carrega dados digitados
+    por usuários — razão social, nome de dirigente, resposta de questionário —
+    e a tela do documento o renderiza como HTML para que o <mark> apareça. Sem
+    escapar, bastava alguém gravar `<img src=x onerror=...>` num cadastro para
+    o código rodar no navegador de quem abrisse a ata depois (XSS armazenado).
+    """
+    seguro = html.escape(texto, quote=False)
     return re.sub(
-        re.escape(MARCADOR_LACUNA),
+        re.escape(html.escape(MARCADOR_LACUNA, quote=False)),
         '<mark class="lacuna">DADO NÃO INFORMADO</mark>',
-        texto,
+        seguro,
     )

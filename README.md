@@ -68,6 +68,7 @@ make varrer       # roda o agendador uma vez (vigílias + prazos)
 - Banco e migrações: [`docs/banco-e-migracoes.md`](docs/banco-e-migracoes.md)
 - Agendador — vigílias e alertas de prazo: [`docs/agendador.md`](docs/agendador.md)
 - Exportação em DOCX e PDF: [`docs/exportacao.md`](docs/exportacao.md)
+- Segurança e LGPD: [`docs/seguranca.md`](docs/seguranca.md)
 
 ## Arquitetura
 

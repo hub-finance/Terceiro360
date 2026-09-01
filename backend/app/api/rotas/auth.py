@@ -6,7 +6,7 @@ import datetime as dt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -18,6 +18,37 @@ from app.modules.compliance.models import LogAcesso
 from app.modules.identity.models import Usuario
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
+
+# §31 — freio de força bruta. Sem isto, uma senha de oito caracteres cai numa
+# tarde: nada limita quantas tentativas o atacante faz por segundo.
+TENTATIVAS_ATE_BLOQUEIO = 5
+JANELA_BLOQUEIO_MINUTOS = 15
+
+
+def _tentativas_recentes(db: Session, email: str, ip: str | None) -> int:
+    """Conta falhas recentes do mesmo e-mail ou do mesmo IP.
+
+    Pelos dois: contar só por e-mail deixa passar a varredura de muitos
+    usuários com senhas comuns; contar só por IP deixa passar o ataque
+    distribuído contra uma conta específica.
+    """
+    desde = agora() - dt.timedelta(minutes=JANELA_BLOQUEIO_MINUTOS)
+    usuario = db.scalar(select(Usuario.id).where(Usuario.email == email))
+    condicoes = []
+    if usuario is not None:
+        condicoes.append(LogAcesso.usuario_id == usuario)
+    if ip:
+        condicoes.append(LogAcesso.ip == ip)
+    if not condicoes:
+        return 0
+    return db.scalar(
+        select(func.count(LogAcesso.id)).where(
+            LogAcesso.acao == "LOGIN",
+            LogAcesso.resultado == "NEGADO",
+            LogAcesso.criado_em >= desde,
+            or_(*condicoes),
+        )
+    ) or 0
 
 
 class TokenOut(BaseModel):
@@ -41,13 +72,25 @@ def login(
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    usuario = db.scalar(select(Usuario).where(Usuario.email == form.username.lower().strip()))
+    email = form.username.lower().strip()
+    ip = request.client.host if request.client else None
+
+    if _tentativas_recentes(db, email, ip) >= TENTATIVAS_ATE_BLOQUEIO:
+        db.add(LogAcesso(acao="LOGIN", ip=ip, resultado="BLOQUEADO",
+                         user_agent=request.headers.get("user-agent")))
+        db.commit()
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"Muitas tentativas. Aguarde {JANELA_BLOQUEIO_MINUTOS} minutos e tente de novo.",
+        )
+
+    usuario = db.scalar(select(Usuario).where(Usuario.email == email))
     autorizado = bool(usuario and usuario.ativo and conferir_senha(form.password, usuario.senha_hash))
 
     db.add(LogAcesso(
         usuario_id=usuario.id if usuario else None,
         acao="LOGIN",
-        ip=request.client.host if request.client else None,
+        ip=ip,
         user_agent=request.headers.get("user-agent"),
         resultado="OK" if autorizado else "NEGADO",
     ))
