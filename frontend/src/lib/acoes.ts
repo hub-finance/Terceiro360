@@ -353,3 +353,99 @@ export async function rodarVarredura(
     };
   }
 }
+
+/* ─────────────────────────────────────── Segurança da conta (§31, §33) */
+
+export async function trocarSenha(
+  senhaAtual: string,
+  senhaNova: string,
+): Promise<Resultado> {
+  try {
+    await chamarApi("/auth/senha", {
+      method: "POST",
+      corpo: { senha_atual: senhaAtual, senha_nova: senhaNova },
+    });
+    revalidatePath("/conta");
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao trocar a senha.",
+    };
+  }
+}
+
+export async function conferirForcaDaSenha(
+  senha: string,
+  email?: string,
+): Promise<{ aceita: boolean; problemas: string[] }> {
+  try {
+    return await chamarApi("/auth/senha/conferir", {
+      method: "POST",
+      corpo: { senha, email },
+    });
+  } catch {
+    // A conferência é conveniência: se ela falhar, quem decide é o servidor
+    // no momento de gravar. Nunca liberar por falha de rede.
+    return { aceita: false, problemas: [] };
+  }
+}
+
+export async function iniciarMfa(): Promise<
+  Resultado & { segredo?: string; svg?: string }
+> {
+  try {
+    const r = await chamarApi<{ segredo: string; uri: string }>("/auth/mfa/iniciar", {
+      method: "POST",
+    });
+    // O QR é desenhado aqui, no servidor. Mandar a URI para um gerador de QR
+    // de terceiros seria entregar o segredo do segundo fator a outra empresa —
+    // exatamente o que ele existe para evitar.
+    const { toString: paraSvg } = await import("qrcode");
+    const svg = await paraSvg(r.uri, {
+      type: "svg",
+      margin: 2,
+      color: { dark: "#000000", light: "#ffffff" },
+    });
+    return { ok: true, segredo: r.segredo, svg };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao iniciar.",
+    };
+  }
+}
+
+export async function confirmarMfa(
+  codigo: string,
+): Promise<Resultado & { codigos?: string[] }> {
+  try {
+    const r = await chamarApi<{ codigos_recuperacao: string[] }>("/auth/mfa/confirmar", {
+      method: "POST",
+      corpo: { codigo },
+    });
+    revalidatePath("/conta");
+    return { ok: true, codigos: r.codigos_recuperacao };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Código inválido.",
+    };
+  }
+}
+
+export async function desativarMfa(senhaAtual: string): Promise<Resultado> {
+  try {
+    await chamarApi("/auth/mfa/desativar", {
+      method: "POST",
+      corpo: { senha_atual: senhaAtual, senha_nova: "" },
+    });
+    revalidatePath("/conta");
+    return { ok: true };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao desativar.",
+    };
+  }
+}

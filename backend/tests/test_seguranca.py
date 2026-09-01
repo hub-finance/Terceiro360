@@ -207,6 +207,7 @@ def test_producao_nao_sobe_com_a_chave_do_repositorio(monkeypatch):
     """A falha mais cara possível: subir assinando sessão com chave pública."""
     monkeypatch.setenv("T360_ENVIRONMENT", "production")
     monkeypatch.delenv("T360_SECRET_KEY", raising=False)
+    monkeypatch.setenv("T360_CHAVE_DADOS", "d" * 64)
     monkeypatch.setenv("T360_DEBUG", "false")
     get_settings.cache_clear()
     with pytest.raises(RuntimeError, match="T360_SECRET_KEY"):
@@ -214,8 +215,21 @@ def test_producao_nao_sobe_com_a_chave_do_repositorio(monkeypatch):
     get_settings.cache_clear()
 
 
+def test_producao_nao_sobe_com_a_chave_de_dados_padrao(monkeypatch):
+    """Com ela, qualquer cópia do banco entrega os CPFs em claro."""
+    monkeypatch.setenv("T360_ENVIRONMENT", "production")
+    monkeypatch.setenv("T360_SECRET_KEY", "k" * 64)
+    monkeypatch.delenv("T360_CHAVE_DADOS", raising=False)
+    monkeypatch.setenv("T360_DEBUG", "false")
+    get_settings.cache_clear()
+    with pytest.raises(RuntimeError, match="T360_CHAVE_DADOS"):
+        get_settings()
+    get_settings.cache_clear()
+
+
 def test_producao_recusa_chave_curta_e_debug_ligado(monkeypatch):
     monkeypatch.setenv("T360_ENVIRONMENT", "production")
+    monkeypatch.setenv("T360_CHAVE_DADOS", "d" * 64)
     monkeypatch.setenv("T360_SECRET_KEY", "curta")
     monkeypatch.setenv("T360_DEBUG", "false")
     get_settings.cache_clear()
@@ -236,3 +250,187 @@ def test_cors_nao_libera_qualquer_origem():
     assert "*" not in origens
     assert all(o.startswith("http://localhost") or o.startswith("https://")
                or o.startswith("http://127.0.0.1") for o in origens)
+
+
+# ----------------------------------------------------- dado pessoal cifrado
+
+
+def test_cpf_nao_esta_em_texto_puro_no_banco(cliente):
+    """O teste que importa: ler a tabela por fora e não achar o número.
+
+    É o cenário real de vazamento — string de conexão exposta, backup baixado,
+    acesso administrativo indevido. A cifragem em disco do provedor não protege
+    nenhum desses.
+    """
+    from sqlalchemy import select, text
+    from app.modules.juridico.models import Pessoa
+
+    db = next(app.dependency_overrides[get_db]())
+    pessoa = db.scalars(select(Pessoa).where(Pessoa.cpf.isnot(None))).first()
+    assert pessoa is not None and pessoa.cpf, "a carga de demonstração cadastra pessoas com CPF"
+    cpf_em_claro = pessoa.cpf
+
+    # Consulta crua, sem passar pelo mapeamento que decifra.
+    cru = db.execute(
+        text("SELECT cpf, cpf_indice FROM pessoas WHERE id = :i"), {"i": str(pessoa.id)}
+    ).one()
+
+    assert cpf_em_claro not in cru[0]
+    assert cru[0].startswith("cif:")
+    # E os dígitos sozinhos também não aparecem, com ou sem pontuação.
+    assert "".join(c for c in cpf_em_claro if c.isdigit()) not in cru[0]
+    assert cpf_em_claro not in (cru[1] or "")
+
+
+def test_o_sistema_continua_achando_a_pessoa_pelo_cpf(cliente):
+    """Cifrar sem quebrar a busca é o ponto todo do índice cego."""
+    from sqlalchemy import select
+    from app.core.cifra import indice
+    from app.modules.juridico.models import Pessoa
+
+    db = next(app.dependency_overrides[get_db]())
+    pessoa = db.scalars(select(Pessoa).where(Pessoa.cpf.isnot(None))).first()
+
+    achada = db.scalar(select(Pessoa).where(Pessoa.cpf_indice == indice(pessoa.cpf)))
+    assert achada is not None and achada.id == pessoa.id
+
+    # Mesmo CPF digitado sem pontuação encontra a mesma pessoa.
+    so_digitos = "".join(c for c in pessoa.cpf if c.isdigit())
+    assert db.scalar(select(Pessoa).where(Pessoa.cpf_indice == indice(so_digitos))).id == pessoa.id
+
+
+def test_indice_do_cpf_nao_e_reversivel_por_forca_bruta():
+    """Um SHA simples do CPF cairia: são 10^11 combinações e há lista pronta."""
+    import hashlib
+    from app.core.cifra import indice
+
+    cpf = "123.456.789-00"
+    assert indice(cpf) != hashlib.sha256(b"12345678900").hexdigest()
+    assert indice(cpf) == indice("12345678900")
+    assert indice(None) is None and indice("") is None
+
+
+def test_mascara_esconde_o_suficiente():
+    from app.core.cifra import mascarar
+
+    assert mascarar("123.456.789-00") == "***.456.789-**"
+
+
+# ------------------------------------------------------- política de senha
+
+
+def test_senha_fraca_e_recusada_na_troca(cliente):
+    cabecalho = _auth(cliente)
+    for fraca in ("123456", "terceiro360", "aaaaaaaaaaaa", "admin@demo.terceiro360"):
+        r = cliente.post("/api/v1/auth/senha", headers=cabecalho,
+                         json={"senha_atual": "terceiro360", "senha_nova": fraca})
+        assert r.status_code == 422, f"{fraca} passou"
+
+
+def test_troca_de_senha_exige_a_senha_atual(cliente):
+    r = cliente.post("/api/v1/auth/senha", headers=_auth(cliente),
+                     json={"senha_atual": "errada", "senha_nova": "chuva-de-agosto-no-cerrado"})
+    assert r.status_code == 401
+
+
+def test_troca_de_senha_funciona_e_a_antiga_para_de_valer(cliente):
+    nova = "vento-norte-na-serra-2026"
+    assert cliente.post("/api/v1/auth/senha", headers=_auth(cliente),
+                        json={"senha_atual": "terceiro360", "senha_nova": nova}
+                        ).status_code == 200
+    assert entrar(cliente, "terceiro360").status_code == 401
+    assert entrar(cliente, nova).status_code == 200
+
+
+# ------------------------------------------------------------------- MFA
+
+
+def test_mfa_so_liga_depois_de_a_pessoa_provar_que_le_o_codigo(cliente):
+    """Ligar antes da confirmação trancaria quem errou a leitura do QR."""
+    import pyotp
+
+    cabecalho = _auth(cliente)
+    inicio = cliente.post("/api/v1/auth/mfa/iniciar", headers=cabecalho).json()
+    assert inicio["uri"].startswith("otpauth://totp/TERCEIRO360")
+    assert cliente.get("/api/v1/auth/mfa", headers=cabecalho).json()["habilitado"] is False
+
+    errado = cliente.post("/api/v1/auth/mfa/confirmar", headers=cabecalho,
+                          json={"codigo": "000000"})
+    assert errado.status_code == 401
+    assert cliente.get("/api/v1/auth/mfa", headers=cabecalho).json()["habilitado"] is False
+
+    certo = cliente.post("/api/v1/auth/mfa/confirmar", headers=cabecalho,
+                         json={"codigo": pyotp.TOTP(inicio["segredo"]).now()})
+    assert certo.status_code == 200
+    assert len(certo.json()["codigos_recuperacao"]) == 8
+
+
+def test_com_mfa_ligado_a_senha_sozinha_nao_entra(cliente):
+    import pyotp
+
+    cabecalho = _auth(cliente)
+    segredo = cliente.post("/api/v1/auth/mfa/iniciar", headers=cabecalho).json()["segredo"]
+    recuperacao = cliente.post(
+        "/api/v1/auth/mfa/confirmar", headers=cabecalho,
+        json={"codigo": pyotp.TOTP(segredo).now()},
+    ).json()["codigos_recuperacao"]
+
+    # Senha certa, sem código: barrado, e sinalizado como falta de segundo fator.
+    so_senha = entrar(cliente)
+    assert so_senha.status_code == 401
+    assert so_senha.headers.get("X-MFA-Exigido") == "1"
+
+    # Com o código: entra.
+    com_codigo = cliente.post(
+        "/api/v1/auth/login",
+        data={"username": "admin@demo.terceiro360.local", "password": "terceiro360",
+              "client_secret": pyotp.TOTP(segredo).now()},
+    )
+    assert com_codigo.status_code == 200
+
+    # Código de recuperação vale uma vez, e só uma.
+    assert cliente.post(
+        "/api/v1/auth/login",
+        data={"username": "admin@demo.terceiro360.local", "password": "terceiro360",
+              "client_secret": recuperacao[0]},
+    ).status_code == 200
+    assert cliente.post(
+        "/api/v1/auth/login",
+        data={"username": "admin@demo.terceiro360.local", "password": "terceiro360",
+              "client_secret": recuperacao[0]},
+    ).status_code == 401
+
+
+def test_desligar_mfa_exige_senha(cliente):
+    import pyotp
+
+    cabecalho = _auth(cliente)
+    segredo = cliente.post("/api/v1/auth/mfa/iniciar", headers=cabecalho).json()["segredo"]
+    cliente.post("/api/v1/auth/mfa/confirmar", headers=cabecalho,
+                 json={"codigo": pyotp.TOTP(segredo).now()})
+
+    assert cliente.post("/api/v1/auth/mfa/desativar", headers=cabecalho,
+                        json={"senha_atual": "errada", "senha_nova": "x"}).status_code == 401
+    assert cliente.post("/api/v1/auth/mfa/desativar", headers=cabecalho,
+                        json={"senha_atual": "terceiro360", "senha_nova": "x"}).status_code == 200
+
+
+# ------------------------------------------------------- cabeçalhos e freio
+
+
+def test_toda_resposta_leva_os_cabecalhos_de_defesa(cliente):
+    r = cliente.get("/saude")
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+    assert r.headers["X-Frame-Options"] == "DENY"          # clickjacking
+    assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"]
+    assert r.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    # HSTS só em produção: em localhost trancaria o navegador do programador.
+    assert "Strict-Transport-Security" not in r.headers
+
+
+def test_documentacao_interativa_fecha_em_producao(monkeypatch):
+    """/docs entrega o mapa completo da API de graça."""
+    from app.core.config import Settings
+
+    assert Settings(environment="production").em_producao is True
+    assert Settings(environment="development").em_producao is False

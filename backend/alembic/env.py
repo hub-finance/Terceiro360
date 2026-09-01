@@ -38,19 +38,20 @@ target_metadata = Base.metadata
 def renderizar_item(tipo_item, objeto, autogen_context):
     """Escreve na migração o tipo do *banco*, não a classe Python.
 
-    `GUID` e `EnumType` são decoradores da aplicação. Se a migração os citasse,
-    renomear ou mover a classe quebraria migrações antigas — que precisam
-    continuar rodando anos depois, exatamente como foram escritas.
+    `GUID`, `EnumType` e `DadoCifrado` são decoradores da aplicação. Se a
+    migração os citasse, renomear ou mover a classe quebraria migrações antigas
+    — que precisam continuar rodando anos depois, exatamente como foram
+    escritas. No banco, os três são coluna comum: uuid e texto.
     """
     if tipo_item != "type":
         return False
 
-    from app.core.types import GUID, EnumType
+    from app.core.types import DadoCifrado, GUID, EnumType
 
     if isinstance(objeto, GUID):
         autogen_context.imports.add("from sqlalchemy.dialects import postgresql")
         return "postgresql.UUID(as_uuid=True)"
-    if isinstance(objeto, EnumType):
+    if isinstance(objeto, (EnumType, DadoCifrado)):
         return f"sa.String(length={objeto.impl.length or 40})"
     return False
 

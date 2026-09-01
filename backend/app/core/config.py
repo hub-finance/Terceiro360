@@ -31,10 +31,19 @@ class Settings(BaseSettings):
     # domínio do painel; deixar localhost aqui não protege nada, mas deixar
     # "*" com credenciais permitiria a qualquer site agir como o usuário.
     cors_origens: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # Teto por IP por minuto, para toda a API. O login tem freio próprio e mais
+    # estreito. Generoso de propósito: um usuário navegando dispara dezenas de
+    # chamadas por tela, e freio que atrapalha o uso legítimo acaba desligado.
+    limite_requisicoes_minuto: int = 300
 
     @property
     def em_producao(self) -> bool:
         return self.environment.lower() in ("production", "producao", "prod")
+
+    # Chave da cifragem de dado pessoal em repouso. Separada da de sessão: a de
+    # sessão pode ser trocada a qualquer momento (só derruba quem está logado);
+    # trocar esta sem migrar os dados torna todo CPF gravado ilegível.
+    chave_dados: str = CHAVE_DE_DESENVOLVIMENTO
 
     # LGPD / retenção
     mascarar_dados_pessoais: bool = True
@@ -62,6 +71,13 @@ def get_settings() -> Settings:
             raise RuntimeError(
                 "T360_SECRET_KEY curta demais (mínimo 32 caracteres) para assinar "
                 "sessões em produção."
+            )
+        if config.chave_dados == CHAVE_DE_DESENVOLVIMENTO:
+            raise RuntimeError(
+                "T360_CHAVE_DADOS não foi definida. Ela cifra CPF e demais dados "
+                "pessoais em repouso; com a chave padrão, qualquer cópia do banco "
+                "seria legível. Gere uma e guarde-a em cofre — perdê-la torna os "
+                "dados já gravados irrecuperáveis."
             )
         if config.debug:
             raise RuntimeError(

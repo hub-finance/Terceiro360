@@ -5,7 +5,10 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text,
+    UniqueConstraint, event,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, TimestampMixin, UUIDMixin
@@ -21,7 +24,8 @@ from app.core.enums import (
     TipoEvento,
     TipoOrgao,
 )
-from app.core.types import EnumType, GUID, JSONType
+from app.core.cifra import indice
+from app.core.types import DadoCifrado, EnumType, GUID, JSONType
 
 
 # ---------------------------------------------------------------- Pessoas
@@ -31,12 +35,19 @@ class Pessoa(UUIDMixin, TimestampMixin, Base):
     """Pessoa natural. Dados pessoais sujeitos à LGPD (§33)."""
 
     __tablename__ = "pessoas"
-    __table_args__ = (UniqueConstraint("cliente_id", "cpf", name="uq_pessoas_cliente_cpf"),)
+    # A unicidade migra para o índice: com o CPF cifrado, duas gravações do
+    # mesmo número produzem textos diferentes e a restrição não pegaria nada.
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "cpf_indice", name="uq_pessoas_cliente_cpf"),
+    )
 
     cliente_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("clientes.id"), index=True)
     nome: Mapped[str] = mapped_column(String(200))
-    cpf: Mapped[str | None] = mapped_column(String(14), index=True)
-    rg: Mapped[str | None] = mapped_column(String(20))
+    # Cifrados em repouso. O texto cifrado muda a cada gravação, então quem
+    # procura por CPF procura pelo índice cego abaixo, nunca por esta coluna.
+    cpf: Mapped[str | None] = mapped_column(DadoCifrado(200))
+    cpf_indice: Mapped[str | None] = mapped_column(String(64), index=True)
+    rg: Mapped[str | None] = mapped_column(DadoCifrado(200))
     orgao_expedidor: Mapped[str | None] = mapped_column(String(20))
     nacionalidade: Mapped[str | None] = mapped_column(String(60))
     estado_civil: Mapped[str | None] = mapped_column(String(40))
@@ -70,6 +81,18 @@ class Pessoa(UUIDMixin, TimestampMixin, Base):
 
 
 # ---------------------------------------------------------------- Estatuto
+
+
+@event.listens_for(Pessoa, "before_insert")
+@event.listens_for(Pessoa, "before_update")
+def _manter_indice_do_cpf(_mapper, _conexao, pessoa: "Pessoa") -> None:
+    """Mantém o índice cego em dia sozinho.
+
+    Deixar isso a cargo de quem grava significaria que uma rotina nova, um
+    script de importação ou um seed esqueceriam — e o esquecimento não dá erro:
+    só faz a busca por CPF não achar e a restrição de duplicata não pegar.
+    """
+    pessoa.cpf_indice = indice(pessoa.cpf)
 
 
 class Estatuto(UUIDMixin, TimestampMixin, Base):

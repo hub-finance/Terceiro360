@@ -73,3 +73,25 @@ class EnumType(TypeDecorator):
         if value is None:
             return None
         return self.enum_class(value)
+
+
+class DadoCifrado(TypeDecorator):
+    """Coluna que guarda o valor cifrado e devolve em claro (§33).
+
+    O código da aplicação continua lendo `pessoa.cpf` como texto normal; quem
+    lê o banco direto vê `cif:gAAAAA...`. É a diferença entre um backup vazado
+    ser um incidente de segurança e ser um vazamento de dado pessoal.
+    """
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        from app.core.cifra import cifrar
+
+        return cifrar(value)
+
+    def process_result_value(self, value, dialect):
+        from app.core.cifra import decifrar
+
+        return decifrar(value)

@@ -14,6 +14,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.cifra import indice
 from app.core.enums import CategoriaDocumento, StatusDocumento, TipoDocumento
 from app.engines.conformidade.matriz import EspecieAssembleia, ato
 from app.engines.templates.motor import renderizar
@@ -168,7 +169,8 @@ def _completar_pessoas(db: Session, entidade: Entidade, pessoas: list) -> list:
         if dados.get("cpf"):
             registro = db.scalar(
                 select(Pessoa).where(
-                    Pessoa.cliente_id == entidade.cliente_id, Pessoa.cpf == dados["cpf"]
+                    Pessoa.cliente_id == entidade.cliente_id,
+                    Pessoa.cpf_indice == indice(dados["cpf"]),
                 )
             )
         if registro is None and dados.get("nome"):

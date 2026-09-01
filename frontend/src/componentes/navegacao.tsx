@@ -60,7 +60,11 @@ export function MenuLateral({
   const caminho = usePathname();
   const [aberto, definirAberto] = useState(false);
   const entidadeId = caminho.match(/^\/entidades\/([0-9a-f-]{36})/)?.[1] ?? null;
-  const base = entidadeId ? `/entidades/${entidadeId}` : "";
+  // Fora de uma entidade — na conta, nas pendências, na Central de Fontes —
+  // os atalhos apontam para a primeira entidade em vez de aparecerem como
+  // "em breve". Chamar de inacabado o que está pronto é pior do que esconder.
+  const entidadeAtiva = entidadeId ?? entidades[0]?.id ?? null;
+  const base = entidadeAtiva ? `/entidades/${entidadeAtiva}` : "";
 
   return (
     <>
@@ -86,7 +90,7 @@ export function MenuLateral({
         </div>
 
         {entidades.length > 0 && (
-          <SeletorEntidade entidades={entidades} atual={entidadeId} caminho={caminho} />
+          <SeletorEntidade entidades={entidades} atual={entidadeAtiva} caminho={caminho} />
         )}
 
         <div className="flex-1 overflow-y-auto px-3 py-4">
@@ -99,7 +103,7 @@ export function MenuLateral({
                 {secao.itens.map((item) => {
                   const destino = item.absoluto ? item.href : `${base}${item.href}`;
                   const ativo = caminho === destino;
-                  if (!item.pronto || (!entidadeId && !item.absoluto)) {
+                  if (!item.pronto || (!entidadeAtiva && !item.absoluto)) {
                     return (
                       <li key={item.rotulo}>
                         <span
@@ -199,6 +203,12 @@ function Rodape({
       <p className="truncate text-[0.75rem] text-[var(--color-tinta-3)]">
         {usuario.registro_profissional ?? usuario.email}
       </p>
+      <Link
+        href="/conta"
+        className="mt-2 mr-3 inline-block text-[0.75rem] font-medium text-[var(--color-tinta-2)] underline-offset-2 hover:underline"
+      >
+        Minha conta
+      </Link>
       <button
         type="button"
         onClick={async () => {

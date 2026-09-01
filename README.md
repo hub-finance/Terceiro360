@@ -60,8 +60,8 @@ Documentação da API em `http://localhost:8000/docs`.
 Acesso de demonstração: `admin@demo.terceiro360.local` / `terceiro360`.
 
 ```bash
-make teste        # 128 testes em SQLite, ~10s
-make teste-pg     # 131 testes em PostgreSQL — rode antes de publicar
+make teste        # 153 testes em SQLite, ~45s
+make teste-pg     # 156 testes em PostgreSQL — rode antes de publicar
 make varrer       # roda o agendador uma vez (vigílias + prazos)
 ```
 
@@ -69,6 +69,7 @@ make varrer       # roda o agendador uma vez (vigílias + prazos)
 - Agendador — vigílias e alertas de prazo: [`docs/agendador.md`](docs/agendador.md)
 - Exportação em DOCX e PDF: [`docs/exportacao.md`](docs/exportacao.md)
 - Segurança e LGPD: [`docs/seguranca.md`](docs/seguranca.md)
+- Publicação (Supabase + API + painel): [`docs/publicacao.md`](docs/publicacao.md)
 
 ## Arquitetura
 

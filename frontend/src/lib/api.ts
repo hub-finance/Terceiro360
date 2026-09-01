@@ -78,18 +78,37 @@ async function corpoSeguro(resposta: Response): Promise<unknown> {
 }
 
 /** Autenticação: o único ponto que fala com a API sem token. */
+export class SegundoFatorExigido extends Error {
+  constructor() {
+    super("Informe o código do seu aplicativo autenticador.");
+    this.name = "SegundoFatorExigido";
+  }
+}
+
 export async function autenticar(
   email: string,
   senha: string,
+  codigo?: string,
 ): Promise<{ access_token: string; expira_em_minutos: number }> {
+  const corpo = new URLSearchParams({ username: email, password: senha });
+  // O código vai no campo `client_secret` do formulário OAuth2 — é o campo
+  // padrão disponível sem inventar um protocolo próprio para isto.
+  if (codigo) corpo.set("client_secret", codigo);
+
   const resposta = await fetch(`${BASE}/api/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ username: email, password: senha }),
+    body: corpo,
     cache: "no-store",
   });
 
   if (!resposta.ok) {
+    // A senha estava certa; falta o segundo fator. Distinguir os dois casos é
+    // o que permite à tela pedir o código em vez de dizer "senha inválida".
+    if (resposta.headers.get("x-mfa-exigido") === "1") throw new SegundoFatorExigido();
+    if (resposta.status === 429) {
+      throw new ErroApi(429, "Muitas tentativas. Aguarde 15 minutos e tente de novo.");
+    }
     throw new ErroApi(
       resposta.status,
       resposta.status === 401

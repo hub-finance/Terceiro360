@@ -34,13 +34,50 @@ class UUIDMixin:
     id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=novo_id)
 
 
+def _pelo_pooler(url: str) -> bool:
+    """Detecta o pooler em modo transação do Supabase.
+
+    Ele atende na porta 6543 (a 5432 é a conexão direta) e no host
+    `pooler.supabase.com`. Em modo transação, cada consulta pode cair numa
+    conexão diferente do banco — e é isso que quebra prepared statements.
+    """
+    return ":6543" in url or "pooler.supabase.com" in url
+
+
 def _connect_args() -> dict:
     if settings.database_url.startswith("sqlite"):
         return {"check_same_thread": False}
-    return {}
+
+    args: dict = {}
+    if _pelo_pooler(settings.database_url):
+        # O psycopg prepara automaticamente a consulta repetida pela quinta vez
+        # e depois a reaproveita pelo nome. Passando pelo pooler em modo
+        # transação, a conexão seguinte não conhece aquele nome e a aplicação
+        # começa a receber "prepared statement does not exist" — de forma
+        # intermitente, só sob carga, e nunca em desenvolvimento.
+        args["prepare_threshold"] = None
+    return args
 
 
-engine = create_engine(settings.database_url, connect_args=_connect_args(), future=True, pool_pre_ping=True)
+def _pool() -> dict:
+    """Tamanho do pool. O pooler já multiplexa; abrir muitas conexões contra
+    ele só consome a cota do projeto sem ganho nenhum."""
+    if settings.database_url.startswith("sqlite"):
+        return {}
+    if _pelo_pooler(settings.database_url):
+        return {"pool_size": 5, "max_overflow": 5, "pool_recycle": 300}
+    return {"pool_size": 10, "max_overflow": 10, "pool_recycle": 1800}
+
+
+engine = create_engine(
+    settings.database_url,
+    connect_args=_connect_args(),
+    future=True,
+    # Conexão que o provedor derrubou por ociosidade é descoberta na hora de
+    # usar, não no meio de uma transação do usuário.
+    pool_pre_ping=True,
+    **_pool(),
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 

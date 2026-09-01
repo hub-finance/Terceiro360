@@ -55,7 +55,16 @@ class Usuario(UUIDMixin, TimestampMixin, Base):
     registro_profissional: Mapped[str | None] = mapped_column(String(50))  # OAB, CRC
     uf_registro: Mapped[str | None] = mapped_column(String(2))
     ultimo_acesso: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Segundo fator (TOTP). O segredo só vira "habilitado" depois que a pessoa
+    # prova que conseguiu ler um código do aplicativo — habilitar antes disso
+    # tranca o usuário para fora da própria conta.
     mfa_habilitado: Mapped[bool] = mapped_column(Boolean, default=False)
+    mfa_segredo: Mapped[str | None] = mapped_column(String(64))
+    mfa_confirmado_em: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    # Guardados como hash, como senha: quem lê o banco não recupera os códigos.
+    mfa_codigos_recuperacao: Mapped[list] = mapped_column(JSONType(), default=list)
+    senha_alterada_em: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
     cliente: Mapped[Cliente] = relationship(back_populates="usuarios")
     vinculos: Mapped[list["UsuarioPerfil"]] = relationship(back_populates="usuario", cascade="all, delete-orphan")

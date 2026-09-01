@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.cifra import indice
 from app.core.enums import SituacaoMembro, StatusEvento, TipoEvento
 from app.modules.compliance.models import RegistroAuditoria
 from app.modules.governanca.models import EventoLinhaTempo
@@ -191,7 +192,9 @@ def _pessoa(db: Session, evento: Evento, nome: str, cpf: str | None) -> Pessoa:
 
     entidade = db.get(Entidade, evento.entidade_id)
     consulta = select(Pessoa).where(Pessoa.cliente_id == entidade.cliente_id)
-    pessoa = db.scalar(consulta.where(Pessoa.cpf == cpf)) if cpf else None
+    # Busca pelo índice cego: a coluna do CPF é cifrada e muda a cada
+    # gravação, então comparar com ela nunca encontraria ninguém.
+    pessoa = db.scalar(consulta.where(Pessoa.cpf_indice == indice(cpf))) if cpf else None
     if pessoa is None:
         pessoa = db.scalar(consulta.where(Pessoa.nome == nome))
     if pessoa is None:

@@ -9,6 +9,10 @@ export function FormularioEntrada({ destino }: { destino?: string }) {
   const router = useRouter();
   const [erro, definirErro] = useState<string | null>(null);
   const [enviando, definirEnviando] = useState(false);
+  // Quando o segundo fator entra em cena, a tela não recomeça: e-mail e senha
+  // ficam onde estão e só aparece o campo do código. Refazer o login inteiro a
+  // cada tentativa de código é o atrito que faz a pessoa desligar o MFA.
+  const [pedindoCodigo, definirPedindoCodigo] = useState(false);
 
   async function enviar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -23,12 +27,18 @@ export function FormularioEntrada({ destino }: { destino?: string }) {
         body: JSON.stringify({
           email: dados.get("email"),
           senha: dados.get("senha"),
+          codigo: dados.get("codigo") || undefined,
         }),
       });
 
       if (!resposta.ok) {
         const corpo = await resposta.json().catch(() => ({}));
-        definirErro(corpo.erro ?? "Não foi possível entrar.");
+        if (corpo.mfa) {
+          definirPedindoCodigo(true);
+          definirErro(pedindoCodigo ? "Código inválido ou expirado. Tente o próximo." : null);
+        } else {
+          definirErro(corpo.erro ?? "Não foi possível entrar.");
+        }
         definirEnviando(false);
         return;
       }
@@ -62,8 +72,21 @@ export function FormularioEntrada({ destino }: { destino?: string }) {
         placeholder="••••••••"
       />
 
+      {pedindoCodigo && (
+        <Campo
+          rotulo="Código de verificação"
+          name="codigo"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          autoFocus
+          required
+          placeholder="000000"
+          ajuda="Os seis dígitos do seu aplicativo autenticador. Sem o celular à mão, use um dos códigos de recuperação."
+        />
+      )}
+
       <Botao tipo="submit" disabled={enviando} className="w-full">
-        {enviando ? "Entrando…" : "Entrar"}
+        {enviando ? "Entrando…" : pedindoCodigo ? "Confirmar código" : "Entrar"}
       </Botao>
     </form>
   );

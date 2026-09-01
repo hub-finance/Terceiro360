@@ -6,17 +6,19 @@
  */
 import { NextResponse } from "next/server";
 
-import { ErroApi, autenticar } from "@/lib/api";
+import { ErroApi, SegundoFatorExigido, autenticar } from "@/lib/api";
 import { COOKIE_SESSAO, opcoesCookie } from "@/lib/sessao";
 
 export async function POST(requisicao: Request) {
   let email: string;
   let senha: string;
+  let codigo: string | undefined;
 
   try {
     const corpo = await requisicao.json();
     email = String(corpo.email ?? "").trim().toLowerCase();
     senha = String(corpo.senha ?? "");
+    codigo = corpo.codigo ? String(corpo.codigo).trim() : undefined;
   } catch {
     return NextResponse.json({ erro: "Requisição malformada." }, { status: 400 });
   }
@@ -26,11 +28,14 @@ export async function POST(requisicao: Request) {
   }
 
   try {
-    const { access_token, expira_em_minutos } = await autenticar(email, senha);
+    const { access_token, expira_em_minutos } = await autenticar(email, senha, codigo);
     const resposta = NextResponse.json({ ok: true });
     resposta.cookies.set(COOKIE_SESSAO, access_token, opcoesCookie(expira_em_minutos * 60));
     return resposta;
   } catch (erro) {
+    if (erro instanceof SegundoFatorExigido) {
+      return NextResponse.json({ erro: erro.message, mfa: true }, { status: 401 });
+    }
     if (erro instanceof ErroApi) {
       return NextResponse.json({ erro: erro.message }, { status: erro.status });
     }

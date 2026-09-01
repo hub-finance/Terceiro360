@@ -25,27 +25,49 @@ acesso ao repositório tem o produto; quem não tem, tem só a tela.
 | Injeção de SQL | Nenhuma consulta é montada com texto: tudo passa por SQLAlchemy com parâmetros. |
 | XSS | React escapa por padrão. O único ponto que renderiza HTML é o teor do documento, e ali o texto é escapado antes de a lacuna ser marcada. |
 | Rastro | Toda tentativa de login — inclusive negada e bloqueada — vai para `logs`, com IP e navegador. Alterações vão para `auditoria`, com antes, depois, autor e motivo. |
-| Configuração | Em produção o sistema **se recusa a subir** com a chave de assinatura padrão, com chave curta, ou com `DEBUG` ligado. |
+| Configuração | Em produção o sistema **se recusa a subir** com chave de assinatura ou de cifragem padrão, com chave curta, ou com `DEBUG` ligado. |
 | CORS | Lista fechada de origens. Nunca `*`, que com credenciais permitiria a qualquer site agir como o usuário logado. |
+| Segundo fator | TOTP, com códigos de recuperação de uso único. Só é ativado depois que a pessoa prova que consegue ler um código — ativar antes trancaria quem errou a leitura do QR para fora da própria conta. O QR é desenhado no nosso servidor: mandar a URI para um gerador de terceiros seria entregar o segredo a outra empresa. |
+| Política de senha | Mínimo de 12 caracteres, sem previsíveis, sem sequência de teclado, sem conter nome ou e-mail. Sem exigir símbolo: obrigar composição produz `Senha@123`, e é o comprimento que protege (NIST SP 800-63B). |
+| Dado pessoal em repouso | CPF e RG cifrados em coluna (Fernet). A busca continua funcionando por um índice cego — HMAC-SHA256 com chave, não SHA simples, que cairia por força bruta em minutos. |
+| Cabeçalhos | CSP com nonce por requisição, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, nos dois servidores. |
+| Freio de requisições | Teto por IP por minuto em toda a API, além do freio próprio do login. |
+| `/docs` | Fechado em produção: é o mapa completo da API servido de graça. |
 
 Cada linha dessa tabela tem teste correspondente em `tests/test_seguranca.py`,
 escrito como tentativa de ataque — token forjado com outra chave, token
 expirado, força bruta, e um administrador de um escritório tentando ler a
 entidade de outro.
 
+## Sobre a CSP com nonce
+
+Vale registrar por que ela não ficou no `next.config.ts`, que seria o lugar
+óbvio: `script-src 'self'` sozinho **bloqueia o próprio Next**, que injeta
+script inline para hidratar a página. O efeito é traiçoeiro — a tela renderiza
+normalmente, o servidor não acusa nada, e simplesmente nenhum botão funciona.
+
+A saída é um nonce diferente por resposta, e nonce por resposta não cabe numa
+configuração estática. Por isso a política é montada em `src/middleware.ts`, que
+gera o nonce, o repassa no cabeçalho da requisição (o Next o aplica sozinho aos
+seus scripts) e o devolve na resposta.
+
+`'strict-dynamic'` completa: o script já autorizado pode carregar os seus
+próprios pedaços, sem precisar listar cada arquivo gerado pelo build.
+
 ## O que ainda falta
 
-Nada disso impede o uso interno, mas deve entrar antes de cliente pagante:
-
-1. **HTTPS obrigatório e HSTS** — depende da publicação; hoje é http local.
-2. **MFA** — o campo existe no modelo de usuário, a verificação não.
-3. **Política de senha** — não há mínimo de força nem troca periódica.
-4. **Limite de requisições geral** — o freio hoje cobre só o login.
-5. **Cabeçalhos de resposta** — CSP, `X-Frame-Options`, `X-Content-Type-Options`.
-6. **`/docs` e `/openapi.json` abertos** — convém fechar em produção.
-7. **Backup testado** — backup que nunca foi restaurado não é backup.
-8. **Criptografia de CPF em repouso** — hoje o dado pessoal está protegido pelo
-   banco, não em coluna cifrada.
+1. **Backup testado** — o roteiro está em [`publicacao.md`](publicacao.md), mas
+   backup que nunca foi restaurado não é backup. É tarefa de quem publica.
+2. **Rotação de chave de cifragem** — hoje trocar a `T360_CHAVE_DADOS` exige
+   migração manual. Falta o comando que recifra a base com a chave nova.
+3. **Freio distribuído** — o teto por IP vive na memória do processo; com
+   várias réplicas, cada uma conta a sua parte. Para ataque sério, o freio
+   precisa estar na CDN ou no proxy reverso, antes da aplicação.
+4. **Verificação contra bases de vazamento** — a lista de senhas previsíveis é
+   curta de propósito; o passo seguinte é consultar uma base pública.
+5. **Expiração de sessão por inatividade** — hoje o token vale 8 horas fixas.
+6. **Alerta de acesso incomum** — o rastro existe em `logs`, mas ninguém é
+   avisado quando aparece um login de origem nova.
 
 ## LGPD
 

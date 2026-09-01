@@ -1,8 +1,11 @@
 # Ambiente de desenvolvimento do TERCEIRO360.
 #
-#   docker compose up -d          sobe banco e API
+#   docker compose up -d          sobe banco, API e painel
 #   docker compose run --rm api alembic upgrade head
 #   docker compose run --rm api python -m app.seeds --demo
+#
+# Para publicar com o banco no Supabase, veja docs/publicacao.md: lá o serviço
+# `banco` sai de cena e T360_DATABASE_URL aponta para o pooler.
 
 services:
   banco:
@@ -42,6 +45,34 @@ services:
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  painel:
+    build: ./frontend
+    depends_on:
+      - api
+    environment:
+      # Endereço interno: o navegador nunca fala com a API direto.
+      API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+
+  # Varredura diária de vigílias e prazos. Sem alguém disparando o agendador,
+  # nada avisa ninguém — nem prazo de mandato, nem mudança na lei.
+  agendador:
+    build: ./backend
+    depends_on:
+      banco:
+        condition: service_healthy
+    environment:
+      T360_DATABASE_URL: postgresql+psycopg://terceiro360:${POSTGRES_PASSWORD:-terceiro360}@banco:5432/terceiro360
+      T360_SECRET_KEY: ${T360_SECRET_KEY:-troque-esta-chave-em-producao}
+      T360_CHAVE_DADOS: ${T360_CHAVE_DADOS:-troque-esta-chave-em-producao}
+    entrypoint: >
+      sh -c "while true; do
+               python -m app.agendador tudo || true;
+               sleep 86400;
+             done"
+    restart: unless-stopped
 
 volumes:
   dados_postgres:

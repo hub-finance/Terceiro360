@@ -8,6 +8,8 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.seguranca_http import CabecalhosSeguranca, FreioDeRequisicoes
 from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
@@ -41,16 +43,30 @@ documentos, mas **não substitui a análise profissional** quando esta for
 necessária.
 """
 
+# Em produção a documentação interativa fica fechada. Ela lista cada rota, cada
+# parâmetro e cada formato de resposta — é o mapa que um atacante levaria uma
+# semana para levantar sozinho, servido de graça.
+_publica = not settings.em_producao
+
 app = FastAPI(
     title=settings.app_name,
     description=DESCRICAO,
     summary=settings.app_slogan,
     version="0.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if _publica else None,
+    redoc_url="/redoc" if _publica else None,
+    openapi_url="/openapi.json" if _publica else None,
 )
 
+# A ordem importa: o middleware registrado por último é o primeiro a ver a
+# requisição. O freio vem antes de tudo, para que uma enxurrada não chegue a
+# abrir conexão com o banco.
+app.add_middleware(CabecalhosSeguranca)
+app.add_middleware(
+    FreioDeRequisicoes,
+    limite=settings.limite_requisicoes_minuto,
+    janela_segundos=60,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origens,
