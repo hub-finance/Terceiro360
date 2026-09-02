@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
-import { Cartao } from "@/componentes/base";
+import { Aviso, Cartao } from "@/componentes/base";
+import { CatalogoAtos } from "@/componentes/catalogo-atos";
 import { ClassificacaoAto } from "@/componentes/classificacao-ato";
 import { Questionario } from "@/componentes/questionario";
-import { chamarApi } from "@/lib/api";
+import { ErroApi, chamarApi } from "@/lib/api";
 import { referenciasDoEstatuto } from "@/lib/estatuto";
-import type { AtoDetalhado } from "@/lib/tipos";
+import type { Ato, AtoDetalhado } from "@/lib/tipos";
 
 export const metadata = { title: "Novo ato" };
 
@@ -19,12 +19,55 @@ export default async function PaginaNovoAto({
 }) {
   const { id } = await params;
   const { tipo } = await searchParams;
-  if (!tipo) notFound();
 
-  const [ato, referencias] = await Promise.all([
-    chamarApi<AtoDetalhado>(`/catalogo/eventos/${tipo}`),
-    referenciasDoEstatuto(id),
-  ]);
+  // Sem tipo escolhido — ou com um tipo que o catálogo não reconhece — esta
+  // tela mostra a escolha, em vez de 404. A URL é legítima nos dois casos:
+  // quem chega aqui quer criar um ato, só não disse qual.
+  let ato: AtoDetalhado | null = null;
+  let tipoDesconhecido = false;
+
+  if (tipo) {
+    try {
+      ato = await chamarApi<AtoDetalhado>(`/catalogo/eventos/${tipo}`);
+    } catch (erro) {
+      if (erro instanceof ErroApi && erro.status === 404) tipoDesconhecido = true;
+      else throw erro;
+    }
+  }
+
+  if (!ato) {
+    const catalogo = await chamarApi<Record<string, Ato[]>>("/catalogo/eventos");
+    return (
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <Link
+          href={`/entidades/${id}/atos`}
+          className="text-[0.8125rem] text-[var(--color-tinta-3)] hover:text-[var(--color-marca)]"
+        >
+          ← Atos
+        </Link>
+        <h1 className="mt-2 text-xl font-semibold tracking-tight">Novo ato</h1>
+        <p className="mt-1 text-[0.875rem] leading-relaxed text-[var(--color-tinta-3)]">
+          Escolha o ato. O sistema lê o estatuto, pergunta apenas o que é próprio dele
+          e diz o que impede o protocolo antes de gerar qualquer documento.
+        </p>
+
+        {tipoDesconhecido && (
+          <div className="mt-5">
+            <Aviso tom="atencao" titulo="Tipo de ato não reconhecido">
+              O endereço apontava para <strong>{tipo}</strong>, que não existe no
+              catálogo. Escolha abaixo.
+            </Aviso>
+          </div>
+        )}
+
+        <div className="mt-6">
+          <CatalogoAtos entidadeId={id} catalogo={catalogo} />
+        </div>
+      </div>
+    );
+  }
+
+  const referencias = await referenciasDoEstatuto(id);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
