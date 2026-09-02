@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.deps import Sessao, entidade_do_escopo, exigir, sessao_atual
 from app.core.enums import TipoEntidade
+from app.modules.entidades import receita
 from app.modules.entidades.models import Entidade
 from app.modules.governanca.servicos import agenda, dashboard, retrato
 from app.modules.governanca.models import ScoreSnapshot
@@ -68,6 +69,31 @@ def listar(
         termo = f"%{busca}%"
         consulta = consulta.where(Entidade.razao_social.ilike(termo))
     return db.scalars(consulta.order_by(Entidade.razao_social)).all()
+
+
+@router.get("/consulta-cnpj/{cnpj}")
+def consulta_cnpj(
+    cnpj: str,
+    _: Sessao = Depends(exigir("entidades:criar")),
+):
+    """Preenchimento assistido do cadastro a partir do CNPJ (§6).
+
+    Fica atrás da mesma permissão de criar entidade, e não de uma pública:
+    sem isso a API viraria um consultador de CNPJ aberto na internet, com o
+    limite de requisições do serviço gratuito sendo gasto por terceiros.
+
+    Não grava nada. Devolve o que a Receita tem para a tela preencher e a
+    pessoa confirmar — a base fiscal atrasa em relação ao registro civil, e
+    quem sabe qual das duas está certa é quem tem o estatuto na mão.
+    """
+    try:
+        return receita.consultar(cnpj).para_json()
+    except receita.CnpjInvalido as erro:
+        raise HTTPException(422, str(erro))
+    except receita.NaoEncontrado as erro:
+        raise HTTPException(404, str(erro))
+    except receita.ServicoIndisponivel as erro:
+        raise HTTPException(503, str(erro))
 
 
 @router.post("", response_model=EntidadeOut, status_code=201)

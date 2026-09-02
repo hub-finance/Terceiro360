@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Aviso, Botao, Campo } from "@/componentes/base";
-import { criarEntidade } from "@/lib/acoes";
+import { type DadosReceita, consultarCnpj, criarEntidade } from "@/lib/acoes";
 
 const TIPOS: { valor: string; rotulo: string; nota: string }[] = [
   { valor: "ASSOCIACAO", rotulo: "Associação", nota: "União de pessoas para fim não econômico (CC, art. 53)." },
@@ -36,7 +36,58 @@ export function FormularioNovaEntidade() {
   const [erro, definirErro] = useState<string | null>(null);
   const [enviando, definirEnviando] = useState(false);
 
+  // Preenchimento pela Receita. O formulário continua não controlado — trocar
+  // a `versao` remonta os campos com os novos valores padrão, o que preserva a
+  // digitação normal sem transformar cada tecla em re-renderização.
+  const [valores, definirValores] = useState<Record<string, string>>({});
+  const [versao, definirVersao] = useState(0);
+  const [receita, definirReceita] = useState<DadosReceita | null>(null);
+  const [consultando, definirConsultando] = useState(false);
+  const [avisoReceita, definirAvisoReceita] = useState<string | null>(null);
+
   const notaDoTipo = TIPOS.find((t) => t.valor === tipo)?.nota;
+
+  async function buscarNaReceita() {
+    const cnpj = (
+      document.querySelector<HTMLInputElement>('input[name="cnpj" defaultValue={valores.cnpj ?? ""}]')?.value ?? ""
+    ).trim();
+    if (!cnpj) {
+      definirAvisoReceita("Informe o CNPJ para consultar.");
+      return;
+    }
+
+    definirAvisoReceita(null);
+    definirConsultando(true);
+    const resultado = await consultarCnpj(cnpj);
+    definirConsultando(false);
+
+    if (!resultado.ok || !resultado.dados) {
+      definirAvisoReceita(resultado.mensagem ?? "Consulta indisponível.");
+      return;
+    }
+
+    const d = resultado.dados;
+    definirValores({
+      razao_social: d.razao_social ?? "",
+      nome_fantasia: d.nome_fantasia ?? "",
+      cnpj: d.cnpj ?? cnpj,
+      data_constituicao: d.data_constituicao ?? "",
+      logradouro: d.logradouro ?? "",
+      numero: d.numero ?? "",
+      complemento: d.complemento ?? "",
+      bairro: d.bairro ?? "",
+      municipio: d.municipio ?? "",
+      uf: d.uf ?? "",
+      cep: d.cep ?? "",
+      email: d.email ?? "",
+      telefone: d.telefone ?? "",
+    });
+    // Natureza que o sistema não reconhece devolve null: manter a escolha de
+    // quem está cadastrando é melhor do que trocá-la por um palpite.
+    if (d.tipo_entidade) definirTipo(d.tipo_entidade);
+    definirReceita(d);
+    definirVersao((v) => v + 1);
+  }
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -80,13 +131,13 @@ export function FormularioNovaEntidade() {
   }
 
   return (
-    <form onSubmit={enviar} className="space-y-7">
+    <form key={versao} onSubmit={enviar} className="space-y-7">
       <section className="space-y-4">
         <h2 className="text-[0.9375rem] font-semibold tracking-tight">Identificação</h2>
 
         <Campo
           rotulo="Razão social"
-          name="razao_social"
+          name="razao_social" defaultValue={valores.razao_social ?? ""}
           required
           autoFocus
           placeholder="Associação Beneficente Exemplo"
@@ -115,19 +166,77 @@ export function FormularioNovaEntidade() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Campo rotulo="Nome fantasia" name="nome_fantasia" placeholder="Opcional" />
           <Campo
-            rotulo="CNPJ"
-            name="cnpj"
-            inputMode="numeric"
-            placeholder="00.000.000/0001-00"
-            ajuda="Deixe vazio se a entidade ainda não foi registrada."
+            rotulo="Nome fantasia"
+            name="nome_fantasia"
+            defaultValue={valores.nome_fantasia ?? ""}
+            placeholder="Opcional"
           />
+          <div className="space-y-1.5">
+            <label
+              htmlFor="cnpj"
+              className="block text-[0.8125rem] font-medium text-[var(--color-tinta-2)]"
+            >
+              CNPJ
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="cnpj"
+                name="cnpj"
+                defaultValue={valores.cnpj ?? ""}
+                inputMode="numeric"
+                placeholder="00.000.000/0001-00"
+                className="min-w-0 flex-1 rounded-md border bg-[var(--color-superficie)] px-3 py-2 text-[0.875rem] text-[var(--color-tinta)] placeholder:text-[var(--color-tinta-3)]"
+              />
+              <Botao variante="secundario" onClick={buscarNaReceita} disabled={consultando}>
+                {consultando ? "Buscando…" : "Buscar"}
+              </Botao>
+            </div>
+            <p className="text-[0.75rem] text-[var(--color-tinta-3)]">
+              Com o CNPJ, <strong>Buscar</strong> preenche o cadastro pela base da
+              Receita. Deixe vazio se a entidade ainda não foi registrada.
+            </p>
+          </div>
         </div>
+
+        {avisoReceita && <Aviso tom="atencao">{avisoReceita}</Aviso>}
+
+        {receita && (
+          <Aviso
+            tom={receita.situacao_exige_atencao ? "atencao" : "sucesso"}
+            titulo={
+              receita.situacao_exige_atencao
+                ? `Situação cadastral: ${receita.situacao_cadastral}`
+                : "Cadastro preenchido pela Receita Federal"
+            }
+          >
+            {receita.situacao_exige_atencao && (
+              <>
+                A Receita registra este CNPJ como{" "}
+                <strong>{receita.situacao_cadastral?.toLowerCase()}</strong>. Isso não
+                impede o cadastro aqui, mas impede a maior parte dos atos registrais —
+                confirme antes de seguir.{" "}
+              </>
+            )}
+            {receita.natureza_juridica && (
+              <>
+                Natureza jurídica: <strong>{receita.natureza_juridica}</strong>.{" "}
+                {!receita.tipo_entidade && (
+                  <>
+                    O sistema não converte essa natureza automaticamente — escolha o
+                    tipo acima.{" "}
+                  </>
+                )}
+              </>
+            )}
+            Confira campo a campo antes de gravar: a base fiscal atrasa em relação ao
+            registro civil, e quem tem o estatuto na mão é você. Fonte: {receita.fonte}.
+          </Aviso>
+        )}
 
         <Campo
           rotulo="Data de constituição"
-          name="data_constituicao"
+          name="data_constituicao" defaultValue={valores.data_constituicao ?? ""}
           type="date"
           ajuda="A data da assembleia de fundação. Vazio se ela ainda não aconteceu."
         />
@@ -141,15 +250,15 @@ export function FormularioNovaEntidade() {
         </p>
 
         <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
-          <Campo rotulo="Logradouro" name="logradouro" placeholder="Rua, avenida, praça" />
-          <Campo rotulo="Número" name="numero" />
+          <Campo rotulo="Logradouro" name="logradouro" defaultValue={valores.logradouro ?? ""} placeholder="Rua, avenida, praça" />
+          <Campo rotulo="Número" name="numero" defaultValue={valores.numero ?? ""} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Campo rotulo="Complemento" name="complemento" />
-          <Campo rotulo="Bairro" name="bairro" />
+          <Campo rotulo="Complemento" name="complemento" defaultValue={valores.complemento ?? ""} />
+          <Campo rotulo="Bairro" name="bairro" defaultValue={valores.bairro ?? ""} />
         </div>
         <div className="grid gap-4 sm:grid-cols-[1fr_6rem_10rem]">
-          <Campo rotulo="Município" name="municipio" />
+          <Campo rotulo="Município" name="municipio" defaultValue={valores.municipio ?? ""} />
           <div className="space-y-1.5">
             <label htmlFor="uf" className="block text-[0.8125rem] font-medium text-[var(--color-tinta-2)]">
               UF
@@ -157,7 +266,7 @@ export function FormularioNovaEntidade() {
             <select
               id="uf"
               name="uf"
-              defaultValue=""
+              defaultValue={valores.uf ?? ""}
               className="w-full rounded-md border bg-[var(--color-superficie)] px-3 py-2 text-[0.875rem] text-[var(--color-tinta)]"
             >
               <option value="">—</option>
@@ -168,15 +277,15 @@ export function FormularioNovaEntidade() {
               ))}
             </select>
           </div>
-          <Campo rotulo="CEP" name="cep" inputMode="numeric" placeholder="00000-000" />
+          <Campo rotulo="CEP" name="cep" defaultValue={valores.cep ?? ""} inputMode="numeric" placeholder="00000-000" />
         </div>
       </section>
 
       <section className="space-y-4">
         <h2 className="text-[0.9375rem] font-semibold tracking-tight">Contato</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Campo rotulo="E-mail" name="email" type="email" />
-          <Campo rotulo="Telefone" name="telefone" />
+          <Campo rotulo="E-mail" name="email" defaultValue={valores.email ?? ""} type="email" />
+          <Campo rotulo="Telefone" name="telefone" defaultValue={valores.telefone ?? ""} />
           <Campo rotulo="Site" name="site" placeholder="https://" />
         </div>
       </section>

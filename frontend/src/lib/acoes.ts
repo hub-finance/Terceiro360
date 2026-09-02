@@ -471,3 +471,44 @@ export async function criarEntidade(
     };
   }
 }
+
+export interface DadosReceita {
+  cnpj: string;
+  razao_social: string | null;
+  nome_fantasia: string | null;
+  tipo_entidade: string | null;
+  natureza_juridica: string | null;
+  data_constituicao: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  municipio: string | null;
+  uf: string | null;
+  cep: string | null;
+  email: string | null;
+  telefone: string | null;
+  situacao_cadastral: string | null;
+  situacao_exige_atencao: boolean;
+  fonte: string;
+  consultado_em: string;
+}
+
+export async function consultarCnpj(
+  cnpj: string,
+): Promise<Resultado & { dados?: DadosReceita }> {
+  try {
+    const dados = await chamarApi<DadosReceita>(
+      `/entidades/consulta-cnpj/${encodeURIComponent(cnpj)}`,
+    );
+    return { ok: true, dados };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem:
+        erro instanceof ErroApi
+          ? erro.message
+          : "Não foi possível consultar agora. Preencha manualmente.",
+    };
+  }
+}
