@@ -61,10 +61,15 @@ services:
     dockerContext: ./frontend
     plan: free
     envVars:
-      # Endereço interno da API, preenchido pelo próprio Render. Chega como
-      # "host:porta", sem esquema; `src/lib/endereco.ts` completa o http://.
+      # Endereço público da API, escrito por extenso de propósito.
+      #
+      # O caminho natural seria `fromService`/`hostport`, que aponta para a
+      # rede privada do Render. Não usamos: no plano gratuito esse endereço
+      # não se mostrou alcançável, e o sintoma — "não foi possível falar com
+      # o servidor" na tela de login — não diz de onde vem. Pela URL pública
+      # o tráfego sai e volta pela internet, sempre sob TLS, e a ligação é a
+      # mesma que qualquer navegador faria.
+      #
+      # Se o serviço da API for renomeado, este valor precisa acompanhar.
       - key: API_URL
-        fromService:
-          type: web
-          name: terceiro360-api
-          property: hostport
+        value: https://terceiro360-api.onrender.com
