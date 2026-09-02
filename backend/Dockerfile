@@ -15,10 +15,11 @@ RUN apt-get update \
       libpq5 curl fonts-liberation \
  && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
-RUN pip install --upgrade pip && pip install ".[dev]"
-
+# O projeto inteiro vem antes da instalação: instalar um pacote cujo código
+# ainda não foi copiado depende de detalhes da descoberta do setuptools, e
+# quebra de formas difíceis de diagnosticar dentro da imagem.
 COPY . .
+RUN pip install --upgrade pip && pip install --no-cache-dir .
 
 # Roda como usuário sem privilégio: um processo web não precisa ser root.
 RUN useradd --create-home --uid 10001 terceiro360 \
