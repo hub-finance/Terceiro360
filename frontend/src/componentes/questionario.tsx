@@ -165,15 +165,12 @@ function Campo({
             ))}
           </select>
         ) : campo.tipo === "lista" ? (
-          <textarea
+          <ListaComSugestoes
             id={id}
-            rows={3}
-            value={Array.isArray(valor) ? valor.join("\n") : String(valor ?? "")}
-            onChange={(e) =>
-              aoMudar(e.target.value.split("\n").map((l) => l.trim()).filter(Boolean))
-            }
-            placeholder="Um item por linha"
-            className={classe}
+            sugestoes={campo.sugestoes ?? []}
+            valor={Array.isArray(valor) ? valor.map(String) : []}
+            aoMudar={aoMudar}
+            classe={classe}
           />
         ) : campo.tipo === "pessoas" ? (
           <ListaPessoas valor={Array.isArray(valor) ? valor : []} aoMudar={aoMudar} />
@@ -277,4 +274,108 @@ function ListaPessoas({
 
 function vazio(v: unknown) {
   return v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+}
+
+
+/** Campo de lista com pauta sugerida.
+ *
+ * A ordem do dia é o campo que mais custa caro quando fica pela metade:
+ * deliberar sobre assunto ausente do edital é vício de anulação, e o validador
+ * bloqueia o ato quando a matéria não aparece aqui. Escrever tudo à mão, sem
+ * saber o que o sistema procura, transformava isso em adivinhação.
+ *
+ * As sugestões vêm do tipo do ato. Marcar mantém a ordem em que aparecem — a
+ * pauta de uma assembleia tem sequência, e ela não pode depender da ordem em
+ * que a pessoa clicou. O que for escrito à mão fica ao final, na ordem digitada.
+ */
+function ListaComSugestoes({
+  id,
+  sugestoes,
+  valor,
+  aoMudar,
+  classe,
+}: {
+  id: string;
+  sugestoes: string[];
+  valor: string[];
+  aoMudar: (valor: string[]) => void;
+  classe: string;
+}) {
+  const marcadas = new Set(valor.filter((v) => sugestoes.includes(v)));
+  const livres = valor.filter((v) => !sugestoes.includes(v));
+
+  function alternar(item: string) {
+    const proximas = new Set(marcadas);
+    if (proximas.has(item)) proximas.delete(item);
+    else proximas.add(item);
+    aoMudar([...sugestoes.filter((s) => proximas.has(s)), ...livres]);
+  }
+
+  function trocarLivres(texto: string) {
+    const novas = texto.split("\n").map((l) => l.trim()).filter(Boolean);
+    aoMudar([...sugestoes.filter((s) => marcadas.has(s)), ...novas]);
+  }
+
+  if (sugestoes.length === 0) {
+    return (
+      <textarea
+        id={id}
+        rows={3}
+        value={valor.join("\n")}
+        onChange={(e) => trocarLivres(e.target.value)}
+        placeholder="Um item por linha"
+        className={classe}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-2.5">
+      <p className="text-[0.75rem] text-[var(--color-tinta-3)]">
+        Marque o que constava do edital de convocação. Se a redação do seu edital
+        for outra, escreva abaixo — o que vale é o que foi convocado.
+      </p>
+
+      <ul className="space-y-1">
+        {sugestoes.map((item) => (
+          <li key={item}>
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 hover:bg-[var(--color-superficie-2)]">
+              <input
+                type="checkbox"
+                checked={marcadas.has(item)}
+                onChange={() => alternar(item)}
+                className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--color-marca)]"
+              />
+              <span className="text-[0.8125rem] leading-snug text-[var(--color-tinta-2)]">
+                {item}
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+
+      <div className="space-y-1">
+        <label
+          htmlFor={`${id}-livres`}
+          className="block text-[0.75rem] font-medium text-[var(--color-tinta-3)]"
+        >
+          Outros itens da pauta
+        </label>
+        <textarea
+          id={`${id}-livres`}
+          rows={2}
+          value={livres.join("\n")}
+          onChange={(e) => trocarLivres(e.target.value)}
+          placeholder="Um item por linha"
+          className={classe}
+        />
+      </div>
+
+      {valor.length > 0 && (
+        <p className="text-[0.75rem] text-[var(--color-tinta-3)]">
+          {valor.length} {valor.length === 1 ? "item na pauta" : "itens na pauta"}.
+        </p>
+      )}
+    </div>
+  );
 }

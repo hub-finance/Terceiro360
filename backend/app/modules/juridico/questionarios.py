@@ -20,6 +20,10 @@ class Campo:
     ajuda: str | None = None
     # Parâmetro do estatuto exibido ao lado do campo como referência (§52).
     referencia_estatutaria: str | None = None
+    # Itens oferecidos para marcar num campo `lista`. Diferente de `opcoes`:
+    # ali as alternativas são as únicas admitidas; aqui são sugestões, e o
+    # usuário continua livre para escrever o que o edital dele dizia.
+    sugestoes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -37,10 +41,143 @@ class Questionario:
                     "nome": c.nome, "pergunta": c.pergunta, "tipo": c.tipo,
                     "obrigatorio": c.obrigatorio, "opcoes": list(c.opcoes),
                     "ajuda": c.ajuda, "referencia_estatutaria": c.referencia_estatutaria,
+                    "sugestoes": list(c.sugestoes or self._sugestoes(c.nome)),
                 }
                 for c in self.campos
             ],
         }
+
+    def _sugestoes(self, nome_do_campo: str) -> tuple[str, ...]:
+        """Sugestões que dependem do ato, não do campo.
+
+        A ordem do dia mora no bloco comum das assembleias, que não sabe de
+        qual ato se trata. As sugestões dependem justamente disso — uma
+        reeleição e uma dissolução não têm a mesma pauta — então são
+        resolvidas aqui, onde o tipo do evento é conhecido.
+        """
+        if nome_do_campo != "ordem_do_dia":
+            return ()
+        return ABERTURA_PADRAO + SUGESTOES_ORDEM_DO_DIA.get(self.tipo_evento, ())
+
+
+# A pauta que o sistema oferece para marcar. Não é enfeite: deliberar sobre
+# assunto ausente do edital é vício recorrente de anulação e de exigência
+# registral (CC, art. 59), e o validador confere se a matéria do ato aparece
+# aqui. Os textos foram escolhidos para conter as palavras que ele procura.
+#
+# "Assuntos gerais" não aparece de propósito: é exatamente a fórmula que não
+# convoca matéria nenhuma, e oferecê-la seria induzir ao vício.
+ABERTURA_PADRAO: tuple[str, ...] = (
+    "Abertura dos trabalhos e verificação do quórum",
+    "Composição da mesa diretora",
+)
+
+SUGESTOES_ORDEM_DO_DIA: dict[str, tuple[str, ...]] = {
+    TipoEvento.CONSTITUICAO.value: (
+        "Constituição da entidade",
+        "Discussão e aprovação do Estatuto Social",
+        "Eleição e posse da primeira Diretoria",
+        "Eleição do Conselho Fiscal",
+        "Autorização para registro dos atos constitutivos",
+    ),
+    TipoEvento.APROVACAO_ESTATUTO.value: (
+        "Discussão e aprovação do Estatuto Social",
+    ),
+    TipoEvento.ELEICAO_DIRETORIA.value: (
+        "Eleição da Diretoria para o próximo mandato",
+        "Eleição do Conselho Fiscal",
+        "Posse dos eleitos",
+    ),
+    TipoEvento.REELEICAO_DIRETORIA.value: (
+        "Reeleição da Diretoria para novo mandato",
+        "Posse dos reeleitos",
+    ),
+    TipoEvento.POSSE_DIRETORIA.value: (
+        "Posse da Diretoria eleita",
+        "Assinatura do termo de posse",
+    ),
+    TipoEvento.RENUNCIA.value: (
+        "Comunicação de renúncia de membro da administração",
+        "Recomposição do cargo vago",
+    ),
+    TipoEvento.DESTITUICAO.value: (
+        "Destituição de membro da administração",
+        "Recomposição do cargo vago",
+    ),
+    TipoEvento.SUBSTITUICAO.value: (
+        "Substituição de membro da administração",
+    ),
+    TipoEvento.VACANCIA.value: (
+        "Declaração de vacância de cargo da administração",
+        "Recomposição do cargo vago",
+    ),
+    TipoEvento.ALTERACAO_CARGOS.value: (
+        "Alteração da composição de cargos da administração",
+    ),
+    TipoEvento.REFORMA_ESTATUTARIA.value: (
+        "Reforma do Estatuto Social",
+        "Aprovação da redação consolidada do estatuto",
+        "Autorização para averbação da alteração no registro",
+    ),
+    TipoEvento.ALTERACAO_FINALIDADE.value: (
+        "Alteração das finalidades estatutárias (reforma do estatuto)",
+        "Aprovação da redação consolidada do estatuto",
+    ),
+    TipoEvento.ALTERACAO_DENOMINACAO.value: (
+        "Alteração da denominação da entidade (reforma do estatuto)",
+        "Aprovação da redação consolidada do estatuto",
+    ),
+    TipoEvento.ALTERACAO_ENDERECO.value: (
+        "Alteração do endereço da sede",
+    ),
+    TipoEvento.ALTERACAO_ORGAOS.value: (
+        "Alteração dos órgãos de administração (reforma do estatuto)",
+        "Aprovação da redação consolidada do estatuto",
+    ),
+    TipoEvento.ALTERACAO_MANDATO.value: (
+        "Alteração do prazo de mandato (reforma do estatuto)",
+        "Aprovação da redação consolidada do estatuto",
+    ),
+    TipoEvento.ALTERACAO_QUORUM.value: (
+        "Alteração do quórum deliberativo (reforma do estatuto)",
+        "Aprovação da redação consolidada do estatuto",
+    ),
+    TipoEvento.ASSEMBLEIA_ORDINARIA.value: (
+        "Prestação de contas do exercício encerrado",
+        "Parecer do Conselho Fiscal",
+        "Aprovação das contas e do relatório de atividades",
+        "Aprovação do plano de trabalho e do orçamento",
+    ),
+    TipoEvento.PRESTACAO_CONTAS.value: (
+        "Prestação de contas do exercício encerrado",
+        "Parecer do Conselho Fiscal",
+        "Aprovação das contas",
+    ),
+    TipoEvento.APROVACAO_CONTAS.value: (
+        "Apreciação das demonstrações contábeis do exercício",
+        "Parecer do Conselho Fiscal",
+        "Aprovação das contas",
+    ),
+    TipoEvento.PARECER_CONSELHO_FISCAL.value: (
+        "Leitura e apreciação do parecer do Conselho Fiscal",
+    ),
+    TipoEvento.DISSOLUCAO.value: (
+        "Dissolução da entidade",
+        "Nomeação do liquidante",
+        "Destinação do patrimônio remanescente",
+    ),
+    TipoEvento.LIQUIDACAO.value: (
+        "Prestação de contas da liquidação",
+        "Destinação do patrimônio remanescente",
+    ),
+    TipoEvento.DESTINACAO_PATRIMONIAL.value: (
+        "Destinação do patrimônio remanescente",
+    ),
+    TipoEvento.ENCERRAMENTO.value: (
+        "Encerramento da liquidação e extinção da entidade",
+        "Autorização para averbação da extinção no registro",
+    ),
+}
 
 
 _ASSEMBLEIA_BASE = (

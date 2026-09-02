@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { BarraEntidade } from "@/componentes/barra-entidade";
 import { MenuLateral } from "@/componentes/navegacao";
 import { ErroApi, chamarApi } from "@/lib/api";
 import type { EntidadeResumo, Usuario } from "@/lib/tipos";
@@ -21,7 +22,10 @@ export default async function LayoutPainel({ children }: { children: React.React
   return (
     <div className="flex min-h-dvh">
       <MenuLateral entidades={entidades} usuario={usuario} />
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1">
+        <BarraEntidade entidades={entidades} />
+        {children}
+      </main>
     </div>
   );
 }

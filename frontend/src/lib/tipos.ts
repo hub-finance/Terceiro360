@@ -174,6 +174,9 @@ export interface CampoQuestionario {
   ajuda: string | null;
   /** Parâmetro do estatuto exibido ao lado do campo como referência (§52). */
   referencia_estatutaria: string | null;
+  /** Itens oferecidos para marcar num campo `lista`. Sugestões, não as únicas
+   *  respostas admitidas — o edital de cada entidade tem a redação dele. */
+  sugestoes?: string[];
 }
 
 export interface Questionario {

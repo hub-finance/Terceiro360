@@ -24,10 +24,18 @@ dependencies = [
     "pyotp>=2.9",
     "cryptography>=42.0",
     "email-validator>=2.0",
+    # Consulta de CNPJ na base de dados abertos da Receita. Estava só no
+    # extra `dev`, onde o pytest a instalava — a imagem de produção roda
+    # `pip install .` sem extras, e o import derrubava a API na partida.
+    "httpx>=0.27",
+    # Vem junto com o FastAPI, mas `app/core/seguranca_http.py` importa dela
+    # diretamente. Depender de dependência de terceiro em silêncio é como o
+    # httpx acima quebrou: declarada, ela não some numa atualização do FastAPI.
+    "starlette>=0.37",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "httpx>=0.27"]
+dev = ["pytest>=8.0"]
 
 # Dito explicitamente: a descoberta automática do setuptools varia com a versão
 # e com o que existe na pasta no momento do build, e falhar por isso dentro de
