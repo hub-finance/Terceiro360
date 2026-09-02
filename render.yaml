@@ -37,10 +37,14 @@ services:
       - key: T360_DEBUG
         value: "false"
 
-      # Deixe "true" na primeira subida para carregar perfis, base normativa e
-      # modelos. Depois pode virar "false" — é idempotente de qualquer forma.
+      # "true"  = perfis, base normativa e modelos de documento
+      # "demo"  = o acima + entidade de demonstração e primeiro usuário
+      # "false" = nada
+      # É idempotente: rodar de novo atualiza o que mudou e não duplica.
+      # Use "demo" na primeira subida de um ambiente de testes — é o que cria
+      # o usuário de acesso sem precisar de terminal no contêiner.
       - key: T360_CARGA_INICIAL
-        value: "true"
+        value: "demo"
 
       # Preencha com o endereço do painel depois que ele subir, no formato
       # ["https://terceiro360-painel.onrender.com"]. Sem isto o navegador

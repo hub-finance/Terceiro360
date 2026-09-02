@@ -81,17 +81,24 @@ Salve. O Render reinicia sozinho.
 
 Abra o endereço do **terceiro360-painel**.
 
-A carga inicial (`T360_CARGA_INICIAL=true`) cria perfis, base normativa e
-modelos — mas **não** cria usuário nem dados de demonstração, porque isso é
-ambiente de verdade. Para criar o primeiro acesso, vá em
-**terceiro360-api → Shell** no Render e rode:
+A variável **`T360_CARGA_INICIAL`** decide o que é carregado na partida:
 
-```bash
-python -m app.seeds --demo
-```
+| Valor | O que carrega |
+|---|---|
+| `true` | Perfis, base normativa e modelos de documento |
+| `demo` | O acima **+ entidade de demonstração e o primeiro usuário** |
+| `false` | Nada |
 
-Isso cria a associação de demonstração e o usuário
+Para um ambiente de testes, use **`demo`**: é o que cria o acesso
 `admin@demo.terceiro360.local` / `terceiro360`.
+
+Ela roda na partida do contêiner, e não num terminal, de propósito: o plano
+gratuito do Render não dá acesso ao Shell, e sem isso não haveria como criar o
+primeiro usuário — o sistema subiria sem ninguém conseguir entrar.
+
+É idempotente: deixar em `demo` não duplica nada a cada reinício. Para um
+ambiente de verdade, troque para `true` (ou `false`) depois da primeira carga,
+e apague a entidade de demonstração.
 
 **Troque essa senha no primeiro acesso** (Minha conta → Senha) e ative a
 verificação em duas etapas. É um ambiente na internet, com o endereço
