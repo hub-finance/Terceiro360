@@ -7,9 +7,9 @@
  */
 import { NextResponse } from "next/server";
 
+import { BASE_API as BASE } from "@/lib/endereco";
 import { tokenDaSessao } from "@/lib/sessao";
 
-const BASE = process.env.API_URL ?? "http://localhost:8000";
 const FORMATOS = new Set(["docx", "pdf"]);
 
 export async function GET(

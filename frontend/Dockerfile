@@ -8,6 +8,10 @@ FROM node:22-alpine AS construcao
 WORKDIR /app
 COPY --from=dependencias /app/node_modules ./node_modules
 COPY . .
+# `public/` pode não existir (o projeto não tem arquivo estático ainda),
+# e o COPY do estágio final falharia — em produção, não aqui. Criar a
+# pasta vazia custa nada e tira essa aresta do caminho do build.
+RUN mkdir -p public
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

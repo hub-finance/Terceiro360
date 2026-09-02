@@ -1,0 +1,12 @@
+# O que o build da imagem não deve ver.
+#
+# `COPY . .` copia o diretório inteiro. Sem esta lista, um `node_modules`
+# compilado na máquina de quem constrói entraria na imagem por cima do que o
+# `npm ci` instalou — com binários da arquitetura errada, e sem erro nenhum
+# até a hora de rodar. O mesmo vale para um `.next` antigo.
+node_modules
+.next
+.env*
+npm-debug.log*
+Dockerfile
+.dockerignore

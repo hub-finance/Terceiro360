@@ -4,9 +4,9 @@
  * ao navegador. Erros da API viram `ErroApi`, com a mensagem que o backend
  * escreveu — que é redigida para o usuário final, não para o log.
  */
+import { BASE_API as BASE } from "@/lib/endereco";
 import { tokenDaSessao } from "@/lib/sessao";
 
-const BASE = process.env.API_URL ?? "http://localhost:8000";
 
 export class ErroApi extends Error {
   constructor(

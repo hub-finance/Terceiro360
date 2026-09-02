@@ -47,8 +47,10 @@ services:
         value: "demo"
 
       # Preencha com o endereço do painel depois que ele subir, no formato
-      # ["https://terceiro360-painel.onrender.com"]. Sem isto o navegador
-      # bloqueia as chamadas.
+      # ["https://terceiro360-painel.onrender.com"].
+      # Não é o que faz o painel funcionar: o navegador nunca chama a API
+      # direto — quem chama é o servidor do Next, e servidor não tem CORS.
+      # Isto serve para o dia em que outra origem precisar consultar a API.
       - key: T360_CORS_ORIGENS
         sync: false
 
@@ -59,7 +61,8 @@ services:
     dockerContext: ./frontend
     plan: free
     envVars:
-      # Endereço interno da API, preenchido pelo próprio Render.
+      # Endereço interno da API, preenchido pelo próprio Render. Chega como
+      # "host:porta", sem esquema; `src/lib/endereco.ts` completa o http://.
       - key: API_URL
         fromService:
           type: web
