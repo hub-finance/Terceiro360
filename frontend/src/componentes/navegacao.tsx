@@ -89,8 +89,23 @@ export function MenuLateral({
           </Link>
         </div>
 
-        {entidades.length > 0 && (
+        {/* Sem nenhuma entidade cadastrada não há o que selecionar — mas é
+            justamente aí que o atalho para cadastrar mais importa. */}
+        {entidades.length > 0 ? (
           <SeletorEntidade entidades={entidades} atual={entidadeAtiva} caminho={caminho} />
+        ) : (
+          <div className="border-b px-3 py-3">
+            <p className="mb-2 text-[0.75rem] text-[var(--color-tinta-3)]">
+              Nenhuma entidade cadastrada.
+            </p>
+            <Link
+              href="/entidades/nova"
+              onClick={() => definirAberto(false)}
+              className="text-[0.75rem] font-medium text-[var(--color-marca)] underline-offset-2 hover:underline"
+            >
+              + Cadastrar entidade
+            </Link>
+          </div>
         )}
 
         <div className="flex-1 overflow-y-auto px-3 py-4">
@@ -185,6 +200,12 @@ function SeletorEntidade({
           </option>
         ))}
       </select>
+      <Link
+        href="/entidades/nova"
+        className="mt-2 inline-block text-[0.75rem] font-medium text-[var(--color-marca)] underline-offset-2 hover:underline"
+      >
+        + Cadastrar entidade
+      </Link>
     </div>
   );
 }
@@ -208,6 +229,12 @@ function Rodape({
         className="mt-2 mr-3 inline-block text-[0.75rem] font-medium text-[var(--color-tinta-2)] underline-offset-2 hover:underline"
       >
         Minha conta
+      </Link>
+      <Link
+        href="/ajuda"
+        className="mt-2 mr-3 inline-block text-[0.75rem] font-medium text-[var(--color-tinta-2)] underline-offset-2 hover:underline"
+      >
+        Ajuda
       </Link>
       <button
         type="button"

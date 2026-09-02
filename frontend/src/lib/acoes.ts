@@ -449,3 +449,25 @@ export async function desativarMfa(senhaAtual: string): Promise<Resultado> {
     };
   }
 }
+
+/* ────────────────────────────────────────────────────── Entidades */
+
+export async function criarEntidade(
+  dados: Record<string, unknown>,
+): Promise<Resultado & { id?: string }> {
+  try {
+    const entidade = await chamarApi<{ id: string }>("/entidades", {
+      method: "POST",
+      corpo: dados,
+    });
+    // O menu lateral lista as entidades: sem isto, a recém-criada só
+    // apareceria no próximo carregamento completo da aplicação.
+    revalidatePath("/", "layout");
+    return { ok: true, id: entidade.id };
+  } catch (erro) {
+    return {
+      ok: false,
+      mensagem: erro instanceof ErroApi ? erro.message : "Falha ao cadastrar a entidade.",
+    };
+  }
+}
