@@ -45,6 +45,22 @@ _NUM_EXTENSO = {
 }
 
 
+def serializar(valor: object) -> str:
+    """A sugestão como fica gravada: no formato que a leitura dos parâmetros
+    converte de volta (`juridico.servicos._converter`).
+
+    `str()` não serve. `str(False)` é "False", que nenhuma comparação trata
+    como falso; `str(["Presidente", "Diretoria"])` é a representação de lista
+    do Python, que a leitura de listas — separadas por ";" — devolveria como
+    um item só, com colchetes e aspas.
+    """
+    if isinstance(valor, bool):
+        return "true" if valor else "false"
+    if isinstance(valor, (list, tuple)):
+        return "; ".join(str(v) for v in valor)
+    return str(valor)
+
+
 def _sem_acento(texto: str) -> str:
     return "".join(
         c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn"
@@ -58,6 +74,11 @@ def _numero(bruto: str) -> int | None:
     return _NUM_EXTENSO.get(_sem_acento(bruto))
 
 
+_TITULO = re.compile(
+    r"\n\s*(?:CAP[ÍI]TULO|SE[ÇC][ÃA]O|T[ÍI]TULO|SUBSE[ÇC][ÃA]O)\b", re.IGNORECASE
+)
+
+
 def _artigos(texto: str) -> list[tuple[str, str]]:
     """Quebra o estatuto em (identificação do artigo, texto do artigo)."""
     padrao = re.compile(r"(art(?:igo)?\.?\s*\d+\s*[ºo°]?)", re.IGNORECASE)
@@ -69,15 +90,27 @@ def _artigos(texto: str) -> list[tuple[str, str]]:
     for i in range(1, len(partes), 2):
         rotulo = re.sub(r"\s+", " ", partes[i].strip())
         rotulo = re.sub(r"^art(?:igo)?\.?\s*", "art. ", rotulo, flags=re.IGNORECASE)
-        blocos.append((rotulo, partes[i + 1] if i + 1 < len(partes) else ""))
+        corpo = partes[i + 1] if i + 1 < len(partes) else ""
+        # O título que vem entre dois artigos ("CAPÍTULO VI - DO CONSELHO
+        # FISCAL") ficava colado no fim do artigo anterior. A leitura então
+        # achava "conselho fiscal" no art. 23 e citava o artigo errado — com
+        # a confiança mais alta da lista.
+        corpo = _TITULO.split(corpo, maxsplit=1)[0]
+        blocos.append((rotulo, corpo))
     return blocos
 
 
 # Cada regra: (chave, padrão, extrator, confiança)
+# O número repetido entre parênteses, em qualquer das duas formas usuais:
+# "dois (2) anos" e "4 (quatro) anos". A segunda é a mais comum em estatuto, e
+# era a que a leitura não reconhecia.
+_PARENTESE = r"\s*(?:\([^)]{0,25}\))?\s*"
+
+
 def _regra_mandato(bloco: str) -> object | None:
     m = re.search(
         r"mandato[^.]{0,80}?(?:de|por|ser[áa]\s+de|dura[çc][ãa]o\s+de)\s+"
-        r"(\d+|[a-zç]+(?:\s+e\s+[a-zç]+)?)\s*\(?\s*\d*\s*\)?\s*(anos?|meses)",
+        r"(\d+|[a-zç]+(?:\s+e\s+[a-zç]+)?)" + _PARENTESE + r"(anos?|meses)",
         bloco, re.IGNORECASE,
     )
     if not m:
@@ -91,12 +124,12 @@ def _regra_mandato(bloco: str) -> object | None:
 def _regra_prazo_convocacao(bloco: str) -> object | None:
     m = re.search(
         r"(?:antecedência|antecedencia|anteced[êe]ncia\s+m[íi]nima)\s+(?:m[íi]nima\s+)?"
-        r"de\s+(\d+|[a-zç]+)\s*\(?\s*\d*\s*\)?\s*dias",
+        r"de\s+(\d+|[a-zç]+)" + _PARENTESE + r"dias",
         bloco, re.IGNORECASE,
     )
     if not m:
         m = re.search(
-            r"com\s+(\d+|[a-zç]+)\s*\(?\s*\d*\s*\)?\s*dias\s+de\s+antecedência",
+            r"com\s+(\d+|[a-zç]+)" + _PARENTESE + r"dias\s+de\s+antecedência",
             bloco, re.IGNORECASE,
         )
     return _numero(m.group(1)) if m else None
@@ -117,13 +150,26 @@ def _quorum_no_bloco(bloco: str) -> str | None:
     for expressao in _EXPRESSOES_QUORUM:
         m = re.search(expressao, bloco, re.IGNORECASE)
         if m:
-            return re.sub(r"\s+", " ", m.group(0)).strip(" ,;.")
+            bruto = m.group(0)
+            # O limite de caracteres pode cair no meio de uma palavra
+            # ("especialment"). Se cortou, recua até a última palavra inteira.
+            if m.end() < len(bloco) and bloco[m.end()].isalnum():
+                bruto = bruto.rsplit(None, 1)[0] if " " in bruto.strip() else bruto
+            valor = re.sub(r"\s+", " ", bruto).strip(" ,;.")
+            return re.sub(r"\s+(?:e|ou)$", "", valor)
     return None
 
 
 def _partir_por_segunda_convocacao(bloco: str) -> tuple[str, bool, str]:
     """Separa o que vale para a primeira convocação do que vale para a segunda."""
-    m = re.search(r"(?:em\s+)?segunda\s+convoca[çc][ãa]o", bloco, re.IGNORECASE)
+    m = re.search(
+        r"(?:em\s+)?segunda\s+(?:convoca[çc][ãa]o|chamada)"
+        # "e, meia hora após, com qualquer número" — a segunda convocação
+        # descrita pelo intervalo, sem a palavra "segunda".
+        r"|meia\s+hora\s+(?:ap[óo]s|depois)"
+        r"|(?:\d+|trinta|quinze)\s+minutos\s+(?:ap[óo]s|depois)",
+        bloco, re.IGNORECASE,
+    )
     if not m:
         return bloco, False, ""
     return bloco[: m.start()], True, bloco[m.start():]
@@ -154,7 +200,7 @@ def extrair_parametros(texto: str) -> ResultadoExtracao:
         if "mandato" in normalizado:
             valor = _regra_mandato(bloco)
             registrar("MANDATO_DURACAO_MESES", valor, bloco, rotulo, 0.8)
-            if "reelei" in normalizado:
+            if "reelei" in normalizado or "recondu" in normalizado:
                 permite = not re.search(r"(vedad|proibid|n[ãa]o\s+ser[áa]\s+permitid)",
                                         normalizado)
                 registrar("MANDATO_PERMITE_REELEICAO", permite, bloco, rotulo, 0.7)
@@ -221,7 +267,7 @@ def extrair_parametros(texto: str) -> ResultadoExtracao:
                           "Confirme se o parecer do Conselho Fiscal é obrigatório para "
                           "aprovar as contas.")
 
-        if "assembleia geral ordin" in normalizado:
+        if "assembleia" in normalizado and "ordinari" in normalizado:
             if re.search(r"(anualmente|uma vez por ano|todo ano|anual)", normalizado):
                 registrar("AGO_PERIODICIDADE_MESES", 12, bloco, rotulo, 0.75)
             m = re.search(r"at[ée]\s+(?:o\s+dia\s+)?(\d{1,2}\s*(?:de\s+)?[a-zç]+)", bloco,

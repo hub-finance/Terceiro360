@@ -5,6 +5,7 @@ sem passar pela confirmação humana (§46, §49).
 """
 from __future__ import annotations
 
+import ast
 import datetime as dt
 import uuid
 
@@ -18,7 +19,8 @@ from app.core.deps import Sessao, entidade_do_escopo, exigir, sessao_atual
 from app.core.tempo import agora
 from app.core.enums import OrigemDado
 from app.modules.entidades.models import Entidade
-from app.modules.ia.extracao import extrair_parametros
+from app.engines.conformidade.catalogo import CATALOGO
+from app.modules.ia.extracao import extrair_parametros, serializar
 from app.modules.ia.models import AnaliseIA, SugestaoIA
 from app.modules.juridico.models import Estatuto, EstatutoParametro, EstatutoVersao
 
@@ -74,7 +76,7 @@ def extrair(
         db.add(SugestaoIA(
             analise_id=analise.id,
             chave=s.chave,
-            valor_sugerido=str(s.valor),
+            valor_sugerido=serializar(s.valor),
             dispositivo=s.dispositivo,
             trecho=s.trecho,
             confianca=s.confianca,
@@ -130,6 +132,27 @@ def obter_analise(
     }
 
 
+def _para_gravar(valor: str | None, tipo: str) -> str | None:
+    """Normaliza sugestões gravadas antes de `serializar` existir.
+
+    Elas guardavam a representação do Python: "False" e
+    "['Presidente', 'Diretoria']". O booleano a leitura já entende; a lista
+    viraria um item só, com colchetes e aspas.
+    """
+    if valor is None:
+        return None
+    if tipo == "booleano":
+        return "true" if valor.strip().upper() in ("TRUE", "SIM", "1", "S", "V") else "false"
+    if tipo == "lista" and valor.strip().startswith("["):
+        try:
+            itens = ast.literal_eval(valor)
+        except (ValueError, SyntaxError):
+            return valor
+        if isinstance(itens, (list, tuple)):
+            return "; ".join(str(i) for i in itens)
+    return valor
+
+
 class AceiteIn(BaseModel):
     sugestoes: list[uuid.UUID]
 
@@ -170,7 +193,13 @@ def aceitar(
         p = existentes.get(s.chave) or EstatutoParametro(
             versao_id=analise.estatuto_versao_id, chave=s.chave
         )
-        p.valor = s.valor_sugerido
+        # O tipo vem do catálogo. Sem ele a regra ficava como "texto", e
+        # "reeleição vedada" chegava à validação como a palavra "false" —
+        # ou "False", nas sugestões antigas —, que a validação não reconhece
+        # como falso: a reeleição proibida passava como verde.
+        definicao = CATALOGO.get(s.chave)
+        p.tipo_valor = definicao.tipo if definicao else "texto"
+        p.valor = _para_gravar(s.valor_sugerido, p.tipo_valor)
         p.dispositivo = s.dispositivo
         p.trecho = s.trecho
         p.origem = OrigemDado.IA_SUGERIDO
