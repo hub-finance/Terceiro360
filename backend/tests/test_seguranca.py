@@ -105,7 +105,18 @@ def test_senha_nao_e_guardada_nem_reversivel():
 # ------------------------------------------------------------ força bruta
 
 
-def test_forca_bruta_e_travada_apos_cinco_tentativas(cliente):
+def test_freio_desligado_por_padrao_nao_trava_quem_erra(cliente):
+    # Enquanto o sistema está em teste o freio vem desligado: errar a senha é
+    # rotina de quem testa. Seis erros seguidos e a senha certa ainda entra.
+    for _ in range(6):
+        assert entrar(cliente, "errada").status_code == 401
+    assert entrar(cliente).status_code == 200
+
+
+def test_forca_bruta_e_travada_apos_cinco_tentativas(cliente, monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "login_tentativas_ate_bloqueio", 5)
+
     for _ in range(5):
         assert entrar(cliente, "errada").status_code == 401
 

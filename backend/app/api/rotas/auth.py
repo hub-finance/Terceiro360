@@ -29,8 +29,9 @@ router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
 # §31 — freio de força bruta. Sem isto, uma senha de oito caracteres cai numa
 # tarde: nada limita quantas tentativas o atacante faz por segundo.
-TENTATIVAS_ATE_BLOQUEIO = 5
-JANELA_BLOQUEIO_MINUTOS = 15
+#
+# Os limites vêm da configuração, e o padrão é desligado enquanto o sistema
+# está em teste — ver `login_tentativas_ate_bloqueio` em app/core/config.py.
 
 
 def _tentativas_recentes(db: Session, email: str, ip: str | None) -> int:
@@ -40,7 +41,7 @@ def _tentativas_recentes(db: Session, email: str, ip: str | None) -> int:
     usuários com senhas comuns; contar só por IP deixa passar o ataque
     distribuído contra uma conta específica.
     """
-    desde = agora() - dt.timedelta(minutes=JANELA_BLOQUEIO_MINUTOS)
+    desde = agora() - dt.timedelta(minutes=settings.login_bloqueio_minutos)
     usuario = db.scalar(select(Usuario.id).where(Usuario.email == email))
     condicoes = []
     if usuario is not None:
@@ -86,13 +87,14 @@ def login(
     email = form.username.lower().strip()
     ip = request.client.host if request.client else None
 
-    if _tentativas_recentes(db, email, ip) >= TENTATIVAS_ATE_BLOQUEIO:
+    limite = settings.login_tentativas_ate_bloqueio
+    if limite > 0 and _tentativas_recentes(db, email, ip) >= limite:
         db.add(LogAcesso(acao="LOGIN", ip=ip, resultado="BLOQUEADO",
                          user_agent=request.headers.get("user-agent")))
         db.commit()
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
-            f"Muitas tentativas. Aguarde {JANELA_BLOQUEIO_MINUTOS} minutos e tente de novo.",
+            f"Muitas tentativas. Aguarde {settings.login_bloqueio_minutos} minutos e tente de novo.",
         )
 
     usuario = db.scalar(select(Usuario).where(Usuario.email == email))

@@ -67,7 +67,21 @@ primeiro cliente: derrubar um banco de teste, restaurar da cópia, e cronometrar
 quanto tempo levou. O número que sai desse teste é o que se promete em
 contrato — nunca um número estimado.
 
-### 0.5 Teste de invasão independente
+### 0.5 Religar o freio de força bruta do login
+
+Durante o teste, o travamento após senhas erradas fica **desligado** — errar
+a senha é rotina de quem testa, e esperar 15 minutos a cada deslize
+atrapalhava. Antes do primeiro cliente, no Render, em `terceiro360-api`:
+
+```
+T360_LOGIN_TENTATIVAS_ATE_BLOQUEIO = 5
+```
+
+Sem isso, quem chega à tela de login pode testar senhas sem limite. A tranca
+`T360_SENHA_SITE` cobre esse risco enquanto está ligada; quando ela sair para
+o sistema ir a público, o freio precisa entrar no lugar.
+
+### 0.6 Teste de invasão independente
 
 Contratar alguém para tentar invadir e relatar por onde conseguiu. Custa entre
 R$ 5.000 e R$ 15.000 no Brasil para um sistema deste porte. O relatório é

@@ -45,6 +45,16 @@ class Settings(BaseSettings):
     # trocar esta sem migrar os dados torna todo CPF gravado ilegível.
     chave_dados: str = CHAVE_DE_DESENVOLVIMENTO
 
+    # Freio de força bruta no login. 0 = desligado, que é o padrão enquanto o
+    # sistema está em teste: errar a senha é rotina de quem testa, e esperar
+    # 15 minutos a cada deslize atrapalhava mais do que protegia — sobretudo
+    # com o site já trancado por T360_SENHA_SITE na frente.
+    #
+    # LIGAR ANTES DE TER CLIENTE: T360_LOGIN_TENTATIVAS_ATE_BLOQUEIO=5. Sem o
+    # freio, quem chega à tela de login pode testar senhas sem limite.
+    login_tentativas_ate_bloqueio: int = 0
+    login_bloqueio_minutos: int = 15
+
     # LGPD / retenção
     mascarar_dados_pessoais: bool = True
     retencao_logs_dias: int = 1825
