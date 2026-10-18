@@ -100,28 +100,82 @@ próximo, mas impedem vender em escala.
 *(Sugestão levantada durante o desenvolvimento — e é a de melhor relação entre
 esforço e valor de toda esta lista.)*
 
-Hoje o estatuto é cadastrado campo a campo: alguém lê o documento e transcreve
-mandato, quórum e prazo de convocação. Para um escritório com trinta entidades,
-isso é trinta transcrições antes de o sistema servir para alguma coisa. **É a
-maior barreira de entrada do produto.**
+Para um escritório com trinta entidades, transcrever trinta estatutos e trinta
+diretorias antes de o sistema servir para alguma coisa é a **maior barreira de
+entrada do produto**. A saída é o sistema ler os documentos que a entidade já
+tem.
 
-O que construir, em três degraus:
+A regra vale para tudo o que vem abaixo: **o sistema sugere, mostrando o trecho
+de onde tirou; a pessoa confirma; só então o dado entra.** Nada é preenchido
+sozinho.
 
-1. **Anexar o arquivo** — subir o PDF ou DOCX do estatuto e da ata, e guardá-lo
-   junto da entidade. Já resolve a metade do problema: o documento deixa de
-   viver numa pasta solta e passa a ter dono, data e versão.
-2. **Extrair o texto** — ler o conteúdo do arquivo e apresentá-lo lado a lado
-   com os campos, para conferência humana. Sem inteligência artificial: só
-   leitura, com o trecho relevante destacado.
-3. **Sugerir os valores** — o sistema propõe "mandato: 2 anos", mostrando o
-   trecho de onde tirou, e **a pessoa confirma**. Nunca preenche sozinho.
+#### O que já existe
 
-O degrau 3 é onde a IA entra, e a regra do sistema continua valendo: sugestão
-com fonte à vista, confirmação humana obrigatória. Já existe estrutura para
-isso — cada parâmetro do estatuto tem um campo `confirmado` e um campo de
-dispositivo de origem. A extração encaixa exatamente ali.
+**A leitura do texto do estatuto.** Recebe o texto, encontra **14 das 26
+regras** do catálogo — mandato, reeleição, prazo e legitimados da convocação,
+quóruns de instalação, reforma, destituição e dissolução, conselho fiscal,
+assembleia ordinária, destino do patrimônio — e devolve cada uma com o artigo e
+o trecho de origem. O aceite converte a sugestão em regra confirmada, com o
+tipo certo, e ela passa a valer na validação dos atos.
 
-Estimativa: degrau 1, poucos dias. Degraus 2 e 3, algumas semanas.
+Testada contra um estatuto com a redação comum de cartório ("Art. 15." com
+ponto, "4 (quatro) anos", títulos de capítulo entre artigos, "meia hora após"),
+que é hoje teste permanente. Ver `tests/test_extracao_fluxo.py`.
+
+**Limites atuais:** só funciona pela API, a partir de texto; não há tela, e não
+lê arquivo.
+
+#### O que construir, em ordem
+
+1. **Tela de envio do estatuto.** Colar o texto ou enviar o arquivo; ver as
+   sugestões lado a lado com o trecho; aceitar uma a uma. O motor já existe —
+   falta a porta. *Poucos dias.*
+
+2. **Ler arquivo.** Dois casos diferentes:
+   - **PDF digital** (gerado no Word): o texto está dentro do arquivo, e a
+     leitura é direta, sem custo.
+   - **Foto ou escaneado** — o caso típico de estatuto e ata antigos: exige que
+     o sistema "enxergue" a imagem. **Decisão pendente**, com dois caminhos:
+
+     | | Leitor gratuito no servidor | IA com visão |
+     |---|---|---|
+     | Custo | zero | pequeno, por documento — medir antes de precificar |
+     | Foto torta, carimbo, papel amarelado | fraco | bom |
+     | Redação fora do padrão | não entende | entende, e cobre as 26 regras |
+     | O documento sai do sistema | não | sim, vai ao provedor de IA |
+
+     Estatuto é documento registrado, de risco baixo. Ata traz CPF e RG: com a
+     IA com visão, exige contrato de tratamento de dados com o provedor.
+
+   *Algumas semanas, contando o armazenamento do arquivo original no Supabase
+   Storage — o disco do servidor do Render é apagado a cada atualização.*
+
+3. **Importar ata antiga.** No mesmo padrão. Da última ata de eleição, o
+   sistema extrai e propõe para confirmação:
+   - **a diretoria atual** — nomes, cargos e datas do mandato. Essencial na
+     reeleição: o sistema precisa saber quem foi eleito antes e quantos
+     mandatos já cumpriu;
+   - **a qualificação de cada pessoa** — RG, CPF, endereço com CEP, estado
+     civil, nacionalidade, profissão. É o que o cartório exige na ata nova e o
+     mais cansativo de digitar;
+   - **os dados do registro anterior** — número, livro e folha;
+   - **o número de associados**.
+
+   Confirmados, esses dados preenchem o cadastro, e a ata nova de eleição e
+   posse sai quase pronta — montada a partir dele, como já é hoje.
+
+   **O que não se faz:** copiar o texto da ata antiga como modelo da nova. Uma
+   ata registrada há anos pode ter falhas que o cartório aceitou na época e que
+   hoje geram exigência. O texto vem do modelo do sistema, que é conferido; uma
+   entidade com redação própria usa o modelo por escritório, que o sistema já
+   aceita.
+
+   *Depende do item 2 para atas fotografadas ou escaneadas.*
+
+4. **As outras 12 regras do estatuto.** Associados (categorias com voto,
+   carência, procuração), forma de eleição, órgão eleitor, limite de
+   reeleições, meio de convocação, representação. Pela leitura de padrões de
+   texto, uma a uma; ou de uma vez, se a decisão do item 2 for pela IA.
 
 ### 1.2 Telas que faltam
 
@@ -198,7 +252,7 @@ que falta antes de descobrir com quem pagou preço cheio.
 | 2 | Contratos, termos, política de privacidade | Advogado |
 | 3 | Sair do plano gratuito | ~R$ 220/mês |
 | 4 | Testar restauração de cópia | Algumas horas |
-| 5 | Importar documentos (degrau 1) | Programação |
+| 5 | Tela de envio do estatuto; depois ler arquivo e importar ata antiga | Programação; decisão sobre leitura de imagem |
 | 6 | Teste de invasão | R$ 5–15 mil |
 | 7 | Pilotos com desconto | Rede de contato |
 | 8 | Cobrança automática | Programação, depois dos pilotos |
