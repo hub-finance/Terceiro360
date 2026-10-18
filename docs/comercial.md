@@ -164,6 +164,12 @@ lê arquivo.
    Confirmados, esses dados preenchem o cadastro, e a ata nova de eleição e
    posse sai quase pronta — montada a partir dele, como já é hoje.
 
+   **É um atalho, não um caminho obrigatório.** Entidade nova, ou que não tem
+   a ata anterior à mão, segue como hoje: os dados da entidade vêm da Receita
+   pelo CNPJ, a diretoria e as pessoas são cadastradas na tela, e a ata nova
+   sai do mesmo jeito. Nenhuma parte do sistema pode passar a depender da ata
+   antiga para funcionar.
+
    **O que não se faz:** copiar o texto da ata antiga como modelo da nova. Uma
    ata registrada há anos pode ter falhas que o cartório aceitou na época e que
    hoje geram exigência. O texto vem do modelo do sistema, que é conferido; uma
