@@ -73,3 +73,13 @@ services:
       # Se o serviço da API for renomeado, este valor precisa acompanhar.
       - key: API_URL
         value: https://terceiro360-api.onrender.com
+
+      # Tranca do ambiente de testes. NÃO fica declarada aqui de propósito:
+      # é medida temporária, e uma variável no arquivo versionado tende a
+      # sobreviver ao motivo que a criou. Para ligar, acrescente à mão em
+      # terceiro360-painel → Environment:
+      #
+      #   T360_SENHA_SITE = <uma senha qualquer>
+      #
+      # Com ela, nem a tela de login aparece sem senha. Para desligar, apague
+      # a variável. Veja docs/tranca-de-testes.md.

@@ -1,6 +1,11 @@
 /** Guarda de rotas e política de conteúdo (§31).
  *
- * Duas responsabilidades que precisam rodar antes de qualquer página:
+ * Três responsabilidades que precisam rodar antes de qualquer página:
+ *
+ * 0. **Tranca do ambiente de testes** — quando `T360_SENHA_SITE` existe, nem
+ *    a tela de login aparece sem a senha. É para o período em que o sistema
+ *    está publicado mas ainda não é para ser visto: sem ela, qualquer pessoa
+ *    que descubra o endereço chega ao formulário e pode tentar senhas.
  *
  * 1. **Sessão** — confere só a presença do cookie. Quem valida o token é a
  *    API, e é ela que decide o que cada perfil pode; aqui só se evita que a
@@ -18,6 +23,47 @@ import { COOKIE_SESSAO } from "@/lib/sessao";
 
 const PUBLICAS = ["/entrar", "/api/sessao"];
 const producao = process.env.NODE_ENV === "production";
+
+/** Senha única que tranca o site inteiro. Vazia = sem tranca.
+ *
+ * Lida do ambiente a cada requisição, e não numa constante de módulo, porque
+ * é assim que ela acompanha uma troca de valor no painel do Render sem exigir
+ * nova construção da imagem. */
+function senhaDoSite(): string {
+  return process.env.T360_SENHA_SITE ?? "";
+}
+
+/** Comparação que não vaza o tamanho nem o prefixo pelo tempo gasto.
+ *
+ * Um `===` de string curto-circuita no primeiro caractere diferente. A
+ * diferença é de nanossegundos, mas é mensurável através da rede com
+ * repetição suficiente, e descobrir a senha caractere a caractere é um
+ * ataque conhecido. Aqui todo caractere é sempre comparado. */
+function iguaisEmTempoConstante(a: string, b: string): boolean {
+  const tamanho = Math.max(a.length, b.length);
+  let diferenca = a.length ^ b.length;
+  for (let i = 0; i < tamanho; i++) {
+    diferenca |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diferenca === 0;
+}
+
+/** Confere o cabeçalho `Authorization: Basic`. Qualquer usuário serve; o que
+ *  vale é a senha. Pedir um nome de usuário que ninguém definiu só geraria
+ *  dúvida na hora de digitar. */
+function trancaLiberada(requisicao: NextRequest, senha: string): boolean {
+  const cabecalho = requisicao.headers.get("authorization") ?? "";
+  if (!cabecalho.toLowerCase().startsWith("basic ")) return false;
+  try {
+    const decodificado = atob(cabecalho.slice(6).trim());
+    const separador = decodificado.indexOf(":");
+    const informada = separador === -1 ? decodificado : decodificado.slice(separador + 1);
+    return iguaisEmTempoConstante(informada, senha);
+  } catch {
+    // Base64 malformado é tentativa inválida, não erro do servidor.
+    return false;
+  }
+}
 
 function politica(nonce: string): string {
   return [
@@ -48,6 +94,21 @@ function politica(nonce: string): string {
 
 export function middleware(requisicao: NextRequest) {
   const { pathname } = requisicao.nextUrl;
+
+  const senha = senhaDoSite();
+  if (senha && !trancaLiberada(requisicao, senha)) {
+    return new NextResponse("Acesso restrito.", {
+      status: 401,
+      headers: {
+        // `realm` é o texto que o navegador mostra na caixa de senha.
+        "WWW-Authenticate": 'Basic realm="TERCEIRO360 - ambiente de testes", charset="UTF-8"',
+        "Content-Type": "text/plain; charset=utf-8",
+        // Sem isto, um proxy ou a cache do navegador poderia guardar o 401 e
+        // continuar recusando depois que a tranca for removida.
+        "Cache-Control": "no-store",
+      },
+    });
+  }
 
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const csp = politica(nonce);
