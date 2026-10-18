@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.enums import (
     SituacaoAssociado,
@@ -24,25 +25,69 @@ from app.engines.prazos.motor import (
 from app.engines.score.motor import FotografiaEntidade, calcular
 from app.modules.documentos.models import Certidao, Documento
 from app.modules.entidades.models import Entidade
-from app.modules.juridico.models import Assembleia, Associado, Cargo, Evento, Mandato, Orgao
+from app.modules.juridico.models import (
+    Assembleia,
+    Associado,
+    Cargo,
+    Evento,
+    Mandato,
+    MandatoMembro,
+    Orgao,
+)
 from app.modules.juridico.servicos import parametros_da_entidade, versao_vigente
 from app.modules.normativo.models import AtualizacaoNormativa, ImpactoNormativo
 from app.modules.registral.models import Protocolo
 
 
-def _mandato_atual(db: Session, entidade_id: uuid.UUID, hoje: dt.date) -> Mandato | None:
+@dataclass
+class _Carga:
+    """O que todas as partes do painel leem da entidade, lido uma vez só.
+
+    O painel junta retrato, score, inconsistências e agenda, e cada um deles
+    lia de novo o estatuto vigente, os parâmetros e os mandatos — o mesmo dado,
+    três a quatro vezes por requisição, mais uma consulta por membro de
+    diretoria para buscar pessoa e cargo. Foram 70 consultas para abrir uma
+    entidade de demonstração.
+
+    Em desenvolvimento isso não aparece. Em produção a API roda em Oregon e o
+    banco em São Paulo, e cada consulta é uma travessia de continente: ~170 ms.
+    Setenta delas são doze segundos de tela parada.
+    """
+
+    versao: object | None
+    parametros: list
+    mandatos: list[Mandato]
+    mandato: Mandato | None
+
+
+def _carregar(db: Session, entidade_id: uuid.UUID, hoje: dt.date) -> _Carga:
     mandatos = db.scalars(
-        select(Mandato).where(Mandato.entidade_id == entidade_id).order_by(Mandato.data_fim.desc())
+        select(Mandato)
+        .where(Mandato.entidade_id == entidade_id)
+        .order_by(Mandato.data_fim.desc())
+        # Membros, a pessoa e o cargo de cada um, e o órgão: tudo o que as
+        # funções abaixo percorrem. Sem isto, cada acesso vira uma consulta.
+        .options(
+            selectinload(Mandato.membros).selectinload(MandatoMembro.pessoa),
+            selectinload(Mandato.membros).selectinload(MandatoMembro.cargo),
+            selectinload(Mandato.orgao),
+        )
     ).all()
     vigentes = [m for m in mandatos if m.vigente_em(hoje)]
-    return vigentes[0] if vigentes else (mandatos[0] if mandatos else None)
+    return _Carga(
+        versao=versao_vigente(db, entidade_id),
+        parametros=parametros_da_entidade(db, entidade_id),
+        mandatos=list(mandatos),
+        mandato=vigentes[0] if vigentes else (mandatos[0] if mandatos else None),
+    )
 
 
-def retrato(db: Session, entidade: Entidade, hoje: dt.date | None = None) -> RetratoCadastral:
+def retrato(
+    db: Session, entidade: Entidade, hoje: dt.date | None = None, carga: _Carga | None = None
+) -> RetratoCadastral:
     hoje = hoje or dt.date.today()
-    versao = versao_vigente(db, entidade.id)
-    parametros = parametros_da_entidade(db, entidade.id)
-    mandato = _mandato_atual(db, entidade.id, hoje)
+    carga = carga or _carregar(db, entidade.id, hoje)
+    versao, parametros, mandato = carga.versao, carga.parametros, carga.mandato
 
     cargos_vagos: list[str] = []
     if mandato:
@@ -109,11 +154,17 @@ def retrato(db: Session, entidade: Entidade, hoje: dt.date | None = None) -> Ret
     )
 
 
-def fotografia_score(db: Session, entidade: Entidade, hoje: dt.date | None = None) -> FotografiaEntidade:
+def fotografia_score(
+    db: Session,
+    entidade: Entidade,
+    hoje: dt.date | None = None,
+    carga: _Carga | None = None,
+    r: RetratoCadastral | None = None,
+) -> FotografiaEntidade:
     hoje = hoje or dt.date.today()
-    r = retrato(db, entidade, hoje)
-    versao = versao_vigente(db, entidade.id)
-    mandato = _mandato_atual(db, entidade.id, hoje)
+    carga = carga or _carregar(db, entidade.id, hoje)
+    r = r or retrato(db, entidade, hoje, carga)
+    versao, mandato = carga.versao, carga.mandato
 
     ultima_assembleia = db.scalar(
         select(func.max(Assembleia.data_hora)).where(Assembleia.entidade_id == entidade.id)
@@ -144,6 +195,9 @@ def fotografia_score(db: Session, entidade: Entidade, hoje: dt.date | None = Non
             Orgao.entidade_id == entidade.id, Cargo.obrigatorio.is_(True)
         )
     ) or 0
+    certidoes_totais = db.scalar(
+        select(func.count(Certidao.id)).where(Certidao.entidade_id == entidade.id)
+    ) or 0
 
     return FotografiaEntidade(
         tem_estatuto_vigente=r.tem_estatuto_vigente,
@@ -160,14 +214,8 @@ def fotografia_score(db: Session, entidade: Entidade, hoje: dt.date | None = Non
         conselho_fiscal_preenchido=_conselho_preenchido(db, entidade.id, hoje),
         documentos_obrigatorios=0,
         documentos_presentes=0,
-        certidoes_totais=db.scalar(
-            select(func.count(Certidao.id)).where(Certidao.entidade_id == entidade.id)
-        ) or 0,
-        certidoes_validas=max(
-            0,
-            (db.scalar(select(func.count(Certidao.id)).where(Certidao.entidade_id == entidade.id)) or 0)
-            - len(r.certidoes_vencidas),
-        ),
+        certidoes_totais=certidoes_totais,
+        certidoes_validas=max(0, certidoes_totais - len(r.certidoes_vencidas)),
         atos_pendentes_registro=pendentes,
         atos_registrados=registrados,
     )
@@ -189,12 +237,15 @@ def _conselho_preenchido(db: Session, entidade_id: uuid.UUID, hoje: dt.date) -> 
     return bool(mandato and mandato.vigente_em(hoje) and mandato.membros)
 
 
-def agenda(db: Session, entidade: Entidade, hoje: dt.date | None = None):
+def agenda(
+    db: Session, entidade: Entidade, hoje: dt.date | None = None, carga: _Carga | None = None
+):
     hoje = hoje or dt.date.today()
     from app.engines.conformidade.resolucao import ResolvedorParametros
 
-    resolvedor = ResolvedorParametros(parametros_da_entidade(db, entidade.id), data_referencia=hoje)
-    mandatos = db.scalars(select(Mandato).where(Mandato.entidade_id == entidade.id)).all()
+    carga = carga or _carregar(db, entidade.id, hoje)
+    resolvedor = ResolvedorParametros(carga.parametros, data_referencia=hoje)
+    mandatos = carga.mandatos
     certidoes = db.scalars(select(Certidao).where(Certidao.entidade_id == entidade.id)).all()
     protocolos = db.scalars(
         select(Protocolo).where(
@@ -239,12 +290,12 @@ def agenda(db: Session, entidade: Entidade, hoje: dt.date | None = None):
 def dashboard(db: Session, entidade: Entidade, hoje: dt.date | None = None) -> dict:
     """§51 — a primeira tela da entidade."""
     hoje = hoje or dt.date.today()
-    r = retrato(db, entidade, hoje)
-    score = calcular(fotografia_score(db, entidade, hoje), hoje=hoje)
+    carga = _carregar(db, entidade.id, hoje)
+    r = retrato(db, entidade, hoje, carga)
+    score = calcular(fotografia_score(db, entidade, hoje, carga, r), hoje=hoje)
     inconsistencias = varrer(r, hoje)
-    ag = agenda(db, entidade, hoje)
-    mandato = _mandato_atual(db, entidade.id, hoje)
-    versao = versao_vigente(db, entidade.id)
+    ag = agenda(db, entidade, hoje, carga)
+    mandato, versao = carga.mandato, carga.versao
 
     atos_andamento = db.scalars(
         select(Evento).where(

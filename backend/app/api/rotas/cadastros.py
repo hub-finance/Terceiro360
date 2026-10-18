@@ -7,7 +7,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.db import get_db
 from app.core.deps import Sessao, entidade_do_escopo, exigir, sessao_atual
@@ -158,6 +158,16 @@ def criar_cargo(
     return {"id": str(cargo.id), "nome": cargo.nome, "codigo": cargo.codigo}
 
 
+# Membros com pessoa e cargo, e o órgão: o que as rotas de quadro diretivo
+# percorrem para montar a resposta. Sem carregar junto, cada membro custa duas
+# consultas a mais — pessoa e cargo, uma de cada vez.
+_MANDATO_COMPLETO = (
+    selectinload(Mandato.membros).selectinload(MandatoMembro.pessoa),
+    selectinload(Mandato.membros).selectinload(MandatoMembro.cargo),
+    selectinload(Mandato.orgao),
+)
+
+
 @router.get("/entidades/{entidade_id}/governanca/mapa")
 def mapa_governanca(
     entidade: Entidade = Depends(entidade_do_escopo),
@@ -167,7 +177,9 @@ def mapa_governanca(
     """§18 — mapa organizacional hierárquico."""
     orgaos = db.scalars(select(Orgao).where(Orgao.entidade_id == entidade.id)).all()
     hoje = dt.date.today()
-    mandatos = db.scalars(select(Mandato).where(Mandato.entidade_id == entidade.id)).all()
+    mandatos = db.scalars(
+        select(Mandato).where(Mandato.entidade_id == entidade.id).options(*_MANDATO_COMPLETO)
+    ).all()
     vigentes = {m.orgao_id: m for m in mandatos if m.vigente_em(hoje)}
 
     def montar(pai_id):
@@ -216,6 +228,7 @@ def listar_mandatos(
     mandatos = db.scalars(
         select(Mandato).where(Mandato.entidade_id == entidade.id)
         .order_by(Mandato.data_inicio.desc())
+        .options(*_MANDATO_COMPLETO)
     ).all()
     return [
         {
@@ -293,7 +306,15 @@ def listar_associados(
     db: Session = Depends(get_db),
 ):
     hoje = dt.date.today()
-    associados = db.scalars(select(Associado).where(Associado.entidade_id == entidade.id)).all()
+    # `selectinload` traz as pessoas numa consulta só. Sem ele, cada
+    # `a.pessoa` abaixo disparava a sua própria ida ao banco: 40 associados,
+    # 40 consultas. Em desenvolvimento isso custa milissegundos; em produção,
+    # com a API em Oregon e o banco em São Paulo, cada ida é ~170 ms.
+    associados = db.scalars(
+        select(Associado)
+        .where(Associado.entidade_id == entidade.id)
+        .options(selectinload(Associado.pessoa))
+    ).all()
     return {
         "total": len(associados),
         "aptos_a_votar": len([a for a in associados if a.apto_a_votar_em(hoje)]),

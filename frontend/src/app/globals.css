@@ -170,3 +170,20 @@ mark.lacuna {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Esqueleto de carregamento. Pulsa devagar: um brilho rápido parece ansioso e
+   chama mais atenção para a espera do que a própria espera. Quem pediu menos
+   movimento ao sistema operacional vê o bloco parado. */
+.esqueleto {
+  background: var(--color-superficie-2);
+  animation: esqueleto-pulso 1.6s ease-in-out infinite;
+}
+
+@keyframes esqueleto-pulso {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto { animation: none; }
+}
