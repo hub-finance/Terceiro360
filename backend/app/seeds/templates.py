@@ -282,6 +282,64 @@ _______________________________________________
 {{ PRESIDENTE_MESA }} — Presidente da mesa da Assembleia
 """
 
+# Substituição não é eleição: o termo de posse comum fala em "eleitos na
+# Assembleia Geral", o que é falso quando o estatuto prevê substituto
+# automático (vice, suplente) e não houve assembleia nenhuma.
+TERMO_POSSE_SUBSTITUICAO = CABECALHO + """
+TERMO DE POSSE EM SUBSTITUIÇÃO
+
+Aos {{ DATA_ATO | data_extenso }}, na sede da {{ RAZAO_SOCIAL }}, inscrita no
+CNPJ sob o nº {{ CNPJ }}, {{ SUBSTITUTO }} toma posse no cargo de {{ CARGO }},
+em substituição a {{ PESSOA_SUBSTITUIDA }}{% if MOTIVO_VACANCIA_TEXTO %}, cujo cargo vagou por
+{{ MOTIVO_VACANCIA_TEXTO }}{% endif %}{% if SUBSTITUICAO_AUTOMATICA %}, na forma de substituição prevista no
+Estatuto Social{% else %}, conforme deliberação do órgão competente, na forma
+do Estatuto Social{% endif %}.
+
+O empossado exercerá o cargo até {{ MANDATO_FIM | data }}, completando o
+mandato em curso.
+
+O empossado declara conhecer e aceitar as atribuições do cargo,
+comprometendo-se a exercê-lo na forma do Estatuto Social e da legislação
+aplicável, e declara não estar impedido por lei de exercer a administração da
+entidade.
+
+{{ MUNICIPIO }}, {{ DATA_ATO | data_extenso }}.
+
+
+_______________________________________________
+{{ SUBSTITUTO }} — {{ CARGO }}
+
+
+_______________________________________________
+Nome e cargo de quem dá posse
+"""
+
+# Depois de um remanejamento, a relação que vai ao cartório é a composição
+# inteira — não só quem mudou de cargo. Montada por `aplicar_remanejamentos`.
+RELACAO_DIRETORIA_ALTERACAO = CABECALHO + """
+RELAÇÃO DA DIRETORIA
+Composição após alteração de cargos
+Mandato: {{ MANDATO_INICIO | data }} a {{ MANDATO_FIM | data }}
+
+{% for membro in DIRETORIA_ATUALIZADA %}
+{{ loop.index }}. {{ membro.cargo | maiusculas }}
+    {{ "CARGO VAGO" if membro.vago else "Nome: " ~ membro.nome }}{{ " (alterado nesta deliberação)" if membro.alterado else "" }}
+
+{% endfor %}
+{% if SAEM_DA_DIRETORIA %}
+Deixam a Diretoria nesta deliberação:
+{% for pessoa in SAEM_DA_DIRETORIA %}
+    {{ pessoa.nome }}, que ocupava o cargo de {{ pessoa.cargo }};
+{% endfor %}
+
+{% endif %}
+Composição resultante da alteração de cargos deliberada pelo(a)
+{{ ORGAO_DELIBERANTE }} em {{ DATA_ATO | data_extenso }}, para o restante do
+mandato em curso.
+
+{{ MUNICIPIO }}, {{ DATA_HOJE | data_extenso }}.
+"""
+
 RELACAO_DIRETORIA = CABECALHO + """
 RELAÇÃO DA DIRETORIA ELEITA
 Mandato: {{ MANDATO_INICIO | data }} a {{ MANDATO_FIM | data }}
@@ -442,6 +500,11 @@ TEMPLATES: tuple[TemplateSeed, ...] = (
     TemplateSeed("RELACAO_DIRETORIA_PADRAO", "Relação da diretoria", "RELACAO_DIRETORIA",
                  RELACAO_DIRETORIA,
                  tipos_evento=("ELEICAO_DIRETORIA", "REELEICAO_DIRETORIA", "POSSE_DIRETORIA")),
+    TemplateSeed("TERMO_POSSE_SUBSTITUICAO_PADRAO", "Termo de posse em substituição",
+                 "TERMO_POSSE", TERMO_POSSE_SUBSTITUICAO, tipos_evento=("SUBSTITUICAO",)),
+    TemplateSeed("RELACAO_DIRETORIA_ALTERACAO_PADRAO",
+                 "Relação da diretoria após alteração de cargos", "RELACAO_DIRETORIA",
+                 RELACAO_DIRETORIA_ALTERACAO, tipos_evento=("ALTERACAO_CARGOS",)),
     TemplateSeed("REQUERIMENTO_PADRAO", "Requerimento ao RCPJ", "REQUERIMENTO_RCPJ", REQUERIMENTO,
                  fundamentos=("LRP_1973:art. 120", "LRP_1973:art. 121")),
     TemplateSeed("TERMO_RENUNCIA_PADRAO", "Termo de renúncia", "TERMO_RENUNCIA", TERMO_RENUNCIA,

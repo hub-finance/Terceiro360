@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import re
+import unicodedata
 import uuid
 
 from sqlalchemy import select
@@ -107,6 +108,13 @@ def montar_variaveis(db: Session, evento: Evento, ctx: ContextoValidacao) -> dic
 
     # §53 — o que o sistema consegue deduzir, ele não pergunta.
     variaveis.setdefault("TIPO_ASSEMBLEIA", _tipo_assembleia(evento, ctx))
+    if variaveis.get("MOTIVO_VACANCIA") in MOTIVOS_VACANCIA:
+        variaveis["MOTIVO_VACANCIA_TEXTO"] = MOTIVOS_VACANCIA[variaveis["MOTIVO_VACANCIA"]]
+    if str(evento.tipo) == "ALTERACAO_CARGOS":
+        anterior = variaveis.get("DIRETORIA") or []
+        atualizada = aplicar_remanejamentos(anterior, variaveis.get("REMANEJAMENTOS") or [])
+        variaveis["DIRETORIA_ATUALIZADA"] = atualizada
+        variaveis["SAEM_DA_DIRETORIA"] = quem_sai(anterior, atualizada)
     if mandato:
         representante = mandato.ocupante("PRESIDENTE") or (
             mandato.membros[0] if mandato.membros else None
@@ -120,6 +128,89 @@ def montar_variaveis(db: Session, evento: Evento, ctx: ContextoValidacao) -> dic
         variaveis["ELEITOS"] = _completar_pessoas(db, entidade, variaveis["ELEITOS"])
 
     return {k: v for k, v in variaveis.items() if v is not None}
+
+
+# Como o motivo entra no texto do termo. "OUTRO" fica de fora de propósito: o
+# termo diz "cujo cargo vagou" sem inventar uma causa que ninguém informou.
+MOTIVOS_VACANCIA = {
+    "RENUNCIA": "renúncia",
+    "DESTITUICAO": "destituição",
+    "FALECIMENTO": "falecimento",
+    "IMPEDIMENTO": "impedimento",
+    "ABANDONO": "abandono",
+    "PERDA_DE_REQUISITO": "perda de requisito estatutário",
+}
+
+
+def _chave_cargo(cargo: object) -> str:
+    """Cargo comparável: sem acento, sem caixa, sem espaço sobrando.
+
+    O remanejamento chega digitado ("vice-presidente", "Vice Presidente") e o
+    quadro vem do cadastro ("Vice-Presidente"). Comparar o texto cru faria o
+    mesmo cargo aparecer duas vezes na relação.
+    """
+    texto = unicodedata.normalize("NFD", str(cargo or ""))
+    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    return " ".join(texto.lower().replace("-", " ").split())
+
+
+def aplicar_remanejamentos(diretoria: list, remanejamentos: list) -> list:
+    """A diretoria como fica depois de uma alteração de cargos.
+
+    A relação que vai ao cartório precisa ser a composição *inteira* após a
+    mudança. Listar só quem mudou faria parecer que a diretoria é só aquilo.
+
+    Regras, na ordem:
+    - quem foi remanejado passa a ocupar o cargo indicado;
+    - o cargo que essa pessoa deixou fica VAGO, a menos que outro
+      remanejamento o preencha — o sistema não supõe quem assumiu;
+    - cargo indicado que não existe no quadro entra ao final. Criar cargo é
+      reforma estatutária, e o validador já cobra isso; aqui ele só aparece.
+
+    Cada linha leva `alterado` para o documento distinguir o que mudou.
+    """
+    linhas = [
+        {"cargo": m.get("cargo"), "nome": m.get("nome"), "alterado": False, "vago": False}
+        for m in diretoria
+        if isinstance(m, dict)
+    ]
+    por_cargo = {_chave_cargo(l["cargo"]): l for l in linhas}
+
+    for r in remanejamentos:
+        if not isinstance(r, dict) or not r.get("nome") or not r.get("cargo"):
+            continue
+        nome, destino = r["nome"], _chave_cargo(r["cargo"])
+
+        # Sai do cargo que ocupava antes, se ocupava algum outro.
+        for linha in linhas:
+            if linha["nome"] == nome and _chave_cargo(linha["cargo"]) != destino:
+                linha.update(nome=None, vago=True, alterado=True)
+
+        if destino in por_cargo:
+            por_cargo[destino].update(nome=nome, vago=False, alterado=True)
+        else:
+            nova = {"cargo": r["cargo"], "nome": nome, "alterado": True, "vago": False}
+            linhas.append(nova)
+            por_cargo[destino] = nova
+
+    return linhas
+
+
+def quem_sai(diretoria: list, linhas: list) -> list[dict]:
+    """Quem estava na diretoria e não aparece mais na composição final.
+
+    É consequência lógica — um cargo, um ocupante: quem foi deslocado e não
+    recebeu outro cargo deixou a diretoria. Mas isso precisa estar escrito no
+    documento. Sem esta lista a pessoa simplesmente sumia da relação, e quem
+    conferisse não teria como notar que, talvez, alguém esqueceu de informar o
+    novo cargo dela.
+    """
+    ficam = {l["nome"] for l in linhas if l.get("nome")}
+    return [
+        {"nome": m["nome"], "cargo": m.get("cargo")}
+        for m in diretoria
+        if isinstance(m, dict) and m.get("nome") and m["nome"] not in ficam
+    ]
 
 
 _ROTULO_ESPECIE = {
