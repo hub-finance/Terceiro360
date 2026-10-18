@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from app.api.rotas import (
     agendador,
     auth,
+    backup,
     cadastros,
     documentos,
     entidades,
@@ -27,3 +28,4 @@ api_router.include_router(registral.router)
 api_router.include_router(normativo.router)
 api_router.include_router(igrejas.router)
 api_router.include_router(ia.router)
+api_router.include_router(backup.router)

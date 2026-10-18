@@ -48,6 +48,10 @@ const SECOES: {
       { rotulo: "IA jurídica", href: "/ia", pronto: false },
     ],
   },
+  {
+    titulo: "Sistema",
+    itens: [{ rotulo: "Cópia de segurança", href: "/backup", pronto: true, absoluto: true }],
+  },
 ];
 
 export function MenuLateral({
