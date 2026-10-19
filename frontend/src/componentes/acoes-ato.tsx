@@ -11,6 +11,7 @@ interface ResultadoGeracao {
   gerados?: number;
   semModelo?: string[];
   comLacunas?: string[];
+  falharam?: { documento: string; motivo: string }[];
 }
 
 export function AcoesAto({
@@ -43,6 +44,13 @@ export function AcoesAto({
       definirConfirmandoForca(false);
 
       const avisos: string[] = [];
+      if (r.falharam?.length) {
+        avisos.push(
+          `Não foi possível montar: ${r.falharam
+            .map((f) => `${f.documento} (${f.motivo})`)
+            .join("; ")}. Estes documentos não foram gravados — nada foi salvo em branco.`,
+        );
+      }
       if (r.semModelo?.length) {
         avisos.push(
           `Sem modelo cadastrado: ${r.semModelo

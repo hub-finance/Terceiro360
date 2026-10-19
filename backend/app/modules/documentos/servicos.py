@@ -42,6 +42,15 @@ CATEGORIA_POR_TIPO = {
 }
 
 
+class ErroGeracao(Exception):
+    """Um documento que não pôde ser montado — dito, e não gravado em branco."""
+
+    def __init__(self, documento: str, motivo: str):
+        super().__init__(f"{documento}: {motivo}")
+        self.documento = documento
+        self.motivo = motivo
+
+
 def montar_variaveis(db: Session, evento: Evento, ctx: ContextoValidacao) -> dict:
     """O dicionário que alimenta os templates."""
     entidade: Entidade = db.get(Entidade, evento.entidade_id)
@@ -271,15 +280,21 @@ def _completar_pessoas(db: Session, entidade: Entidade, pessoas: list) -> list:
                 )
             )
         if registro is not None:
-            dados.setdefault("cpf", registro.cpf)
-            dados.setdefault("rg", registro.rg)
-            dados.setdefault("qualificacao", registro.qualificacao)
-            endereco = ", ".join(
+            # Preenche o que está ausente *ou vazio*. `setdefault` só cobria o
+            # ausente — e o questionário manda "cpf": "" quando a pessoa é
+            # digitada só pelo nome. A pessoa cadastrada com CPF saía sem CPF
+            # na ata.
+            def completar(chave, valor):
+                if valor and not dados.get(chave):
+                    dados[chave] = valor
+
+            completar("cpf", registro.cpf)
+            completar("rg", registro.rg)
+            completar("qualificacao", registro.qualificacao)
+            completar("endereco", ", ".join(
                 p for p in (registro.logradouro, registro.numero, registro.bairro,
                             registro.municipio, registro.uf) if p
-            )
-            if endereco:
-                dados.setdefault("endereco", endereco)
+            ))
         completados.append(dados)
     return completados
 
@@ -374,6 +389,11 @@ def gerar_documento(
 
     variaveis = montar_variaveis(db, evento, ctx)
     resultado = renderizar(template.corpo, variaveis)
+    if resultado.erro or not resultado.texto.strip():
+        # Nunca gravar documento vazio como se fosse gerado. Foi o que
+        # acontecia quando um modelo quebrava: a versão ia ao acervo em
+        # branco, sem lacuna apontada, e o ato seguia como "gerado".
+        raise ErroGeracao(template.nome, resultado.erro or "o modelo produziu um documento vazio")
 
     documento = db.scalar(
         select(Documento).where(

@@ -136,6 +136,32 @@ class ResultadoRenderizacao:
         return not self.lacunas and self.erro is None
 
 
+def _tolerante(filtro):
+    """Formatação que não derruba o documento.
+
+    Campo ausente chega aos filtros como `LacunaUndefined`, não como None nem
+    "". Os filtros testavam só os dois últimos, seguiam adiante e liam
+    `valor.day` do indefinido — o motor interrompia a renderização e o
+    documento *inteiro* saía em branco, gravado como gerado. Bastava deixar a
+    data da posse, que é opcional, sem preencher: o termo de posse saía vazio.
+
+    Agora: ausente vira DADO NÃO INFORMADO, anotado como lacuna; valor num
+    formato que o filtro não entende sai como veio, para a revisão enxergar.
+    """
+    def aplicar(valor, *args):
+        if isinstance(valor, Undefined):
+            return valor._registrar() if isinstance(valor, LacunaUndefined) else MARCADOR_LACUNA
+        if valor in (None, ""):
+            return MARCADOR_LACUNA
+        try:
+            return filtro(valor, *args)
+        except (ValueError, TypeError, AttributeError, IndexError):
+            return str(valor)
+
+    aplicar.__name__ = filtro.__name__
+    return aplicar
+
+
 def _ambiente(estrito: bool = False) -> Environment:
     env = Environment(
         undefined=StrictUndefined if estrito else LacunaUndefined,
@@ -145,12 +171,14 @@ def _ambiente(estrito: bool = False) -> Environment:
         autoescape=False,
     )
     env.filters.update({
-        "extenso": por_extenso,
-        "data_extenso": data_extenso,
-        "data": data_br,
-        "hora": hora_br,
-        "maiusculas": maiusculas,
-        "moeda": moeda,
+        nome: _tolerante(filtro) for nome, filtro in {
+            "extenso": por_extenso,
+            "data_extenso": data_extenso,
+            "data": data_br,
+            "hora": hora_br,
+            "maiusculas": maiusculas,
+            "moeda": moeda,
+        }.items()
     })
     return env
 
@@ -182,12 +210,17 @@ def renderizar(corpo: str, contexto: dict) -> ResultadoRenderizacao:
     env = _ambiente()
     usadas = variaveis_do_template(corpo)
     LacunaUndefined.lacunas = set()
+    # Nulo é ausência. Passado ao modelo como None, quebrava um
+    # `{% for item in ORDEM_DO_DIA %}`; como ausente, vira lacuna anotada.
+    contexto = {k: v for k, v in contexto.items() if v is not None}
     try:
         texto = env.from_string(corpo).render(**contexto)
     except TemplateSyntaxError as exc:
         return ResultadoRenderizacao("", [], usadas, f"Erro de sintaxe no modelo: {exc.message}")
     except UndefinedError as exc:
         return ResultadoRenderizacao("", [], usadas, f"Variável indefinida: {exc.message}")
+    except Exception as exc:  # noqa: BLE001 — qualquer falha vira erro dito, nunca texto vazio
+        return ResultadoRenderizacao("", [], usadas, f"Falha ao montar o documento: {exc}")
 
     lacunas = sorted(LacunaUndefined.lacunas)
     LacunaUndefined.lacunas = set()

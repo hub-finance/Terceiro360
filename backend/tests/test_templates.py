@@ -91,3 +91,28 @@ def test_requerimento_nao_leva_codigo_de_enum_ao_cartorio():
     assert _titulo_do_ato(TipoEvento.ELEICAO_DIRETORIA) == "Eleição de diretoria"
     # Tipo fora da matriz não quebra a geração: cai numa forma legível.
     assert _titulo_do_ato("ATO_QUE_NAO_EXISTE") == "Ato que nao existe"
+
+
+def test_nenhum_modelo_sai_em_branco_com_campos_faltando():
+    """Todo modelo padrão, sem nenhum dado: lacunas apontadas, nunca vazio.
+
+    Campo ausente com formatação de data ("{{ DATA_POSSE | data_extenso }}")
+    derrubava a renderização inteira, e o documento era gravado em branco como
+    se tivesse sido gerado. Data da posse é opcional: o termo de posse saía
+    vazio para quem não a preenchesse.
+    """
+    from app.seeds.templates import TEMPLATES
+
+    for modelo in TEMPLATES:
+        for contexto in ({}, {nome: None for nome in variaveis_do_template(modelo.corpo)}):
+            r = renderizar(modelo.corpo, contexto)
+            assert r.erro is None, f"{modelo.codigo}: {r.erro}"
+            assert r.texto.strip(), f"{modelo.codigo} saiu vazio"
+            assert MARCADOR_LACUNA in r.texto, f"{modelo.codigo} não apontou lacuna"
+            assert r.lacunas, f"{modelo.codigo} não registrou lacunas"
+
+
+def test_valor_em_formato_inesperado_aparece_como_veio():
+    # "20/11/2026" não é data ISO: antes, derrubava o documento.
+    r = renderizar("Em {{ D | data_extenso }}.", {"D": "20/11/2026"})
+    assert r.erro is None and r.texto == "Em 20/11/2026."

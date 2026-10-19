@@ -96,11 +96,19 @@ export async function gerarDocumentos(
   eventoId: string,
   caminho: string,
   forcar = false,
-): Promise<Resultado & { gerados?: number; semModelo?: string[]; comLacunas?: string[] }> {
+): Promise<
+  Resultado & {
+    gerados?: number;
+    semModelo?: string[];
+    comLacunas?: string[];
+    falharam?: { documento: string; motivo: string }[];
+  }
+> {
   try {
     const r = await chamarApi<{
       gerados: { tipo: string; titulo: string; lacunas: string[] }[];
       sem_modelo_cadastrado: string[];
+      falharam?: { documento: string; motivo: string }[];
     }>(`/eventos/${eventoId}/gerar-documentos${forcar ? "?forcar=true" : ""}`, {
       method: "POST",
     });
@@ -112,6 +120,7 @@ export async function gerarDocumentos(
       // documento faltando em silêncio vira exigência no cartório.
       semModelo: r.sem_modelo_cadastrado,
       comLacunas: r.gerados.filter((g) => g.lacunas.length > 0).map((g) => g.titulo),
+      falharam: r.falharam ?? [],
     };
   } catch (erro) {
     if (erro instanceof ErroApi && erro.status === 409) {

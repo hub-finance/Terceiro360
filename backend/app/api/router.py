@@ -12,6 +12,7 @@ from app.api.rotas import (
     eventos,
     ia,
     igrejas,
+    importacao,
     normativo,
     registral,
 )
@@ -29,3 +30,4 @@ api_router.include_router(normativo.router)
 api_router.include_router(igrejas.router)
 api_router.include_router(ia.router)
 api_router.include_router(backup.router)
+api_router.include_router(importacao.router)

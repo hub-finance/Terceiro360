@@ -15,7 +15,7 @@ from app.core.enums import Semaforo, StatusEvento, TipoDocumento, TipoEvento
 from app.engines.checklist.motor import montar
 from app.engines.decisao.motor import PERGUNTAS, responder, responder_tudo
 from app.engines.validacao.motor import validar
-from app.modules.documentos.servicos import gerar_documento
+from app.modules.documentos.servicos import ErroGeracao, gerar_documento
 from app.modules.entidades.models import Entidade
 from app.modules.juridico.models import Evento
 from app.modules.juridico.questionarios import campos_faltantes, questionario_de
@@ -228,10 +228,14 @@ def gerar_documentos(
             },
         )
 
-    gerados, sem_modelo = [], []
+    gerados, sem_modelo, falharam = [], [], []
     for codigo in documentos_do_ato(str(evento.tipo)):
         tipo = TipoDocumento(codigo)
-        resultado_geracao = gerar_documento(db, evento, ctx, tipo, sessao.usuario.id)
+        try:
+            resultado_geracao = gerar_documento(db, evento, ctx, tipo, sessao.usuario.id)
+        except ErroGeracao as erro:
+            falharam.append({"tipo": tipo.value, "documento": erro.documento, "motivo": erro.motivo})
+            continue
         if resultado_geracao is None:
             sem_modelo.append(tipo.value)
             continue
@@ -252,6 +256,7 @@ def gerar_documentos(
         "semaforo": resultado.semaforo.value,
         "gerados": gerados,
         "sem_modelo_cadastrado": sem_modelo,
+        "falharam": falharam,
         "ressalvas": [a.to_dict() for a in resultado.pendencias],
     }
 

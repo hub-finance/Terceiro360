@@ -32,6 +32,9 @@ dependencies = [
     # diretamente. Depender de dependência de terceiro em silêncio é como o
     # httpx acima quebrou: declarada, ela não some numa atualização do FastAPI.
     "starlette>=0.37",
+    # Texto de ata em PDF digital, na importação de ata antiga. PDF escaneado
+    # (imagem) não tem texto dentro — esse caso depende de leitura de imagem.
+    "pypdf>=4.0",
 ]
 
 [project.optional-dependencies]
