@@ -199,7 +199,7 @@ function Campo({
           {referencia.status === "CONFIRMADO" ? (
             <span className="text-[var(--color-tinta-2)]">
               <span className="font-medium">Segundo o estatuto cadastrado:</span>{" "}
-              {referencia.valor}
+              {legivel(referencia.valor)}
               {referencia.dispositivo && ` (${referencia.dispositivo})`}
             </span>
           ) : (
@@ -378,4 +378,19 @@ function ListaComSugestoes({
       )}
     </div>
   );
+}
+
+
+/** Valor de parâmetro como se lê numa frase.
+ *
+ * Listas são gravadas separadas por ";" — "Presidente;Diretoria;1/5 dos
+ * associados" — e apareciam assim na tela. Viram "Presidente, Diretoria e 1/5
+ * dos associados".
+ */
+function legivel(valor: unknown): string {
+  const texto = String(valor ?? "");
+  if (!texto.includes(";")) return texto;
+  const itens = texto.split(";").map((i) => i.trim()).filter(Boolean);
+  if (itens.length < 2) return itens.join("");
+  return `${itens.slice(0, -1).join(", ")} e ${itens.at(-1)}`;
 }

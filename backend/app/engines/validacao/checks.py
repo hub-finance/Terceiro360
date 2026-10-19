@@ -636,6 +636,12 @@ def documentos_prestacao_contas(ctx: ContextoValidacao) -> Iterable[Achado]:
 # ------------------------------------------------------------------- RCPJ
 
 
+def _titulo_do_ato(tipo: str) -> str:
+    """O nome do ato para gente ler — nunca o código interno ("REELEICAO_DIRETORIA")."""
+    definicao = ato(str(tipo))
+    return definicao.titulo if definicao else str(tipo).replace("_", " ").capitalize()
+
+
 @check("RCPJ_COMPETENTE", "RCPJ competente identificado", grupo="REGISTRAL")
 def rcpj_competente(ctx: ContextoValidacao) -> Iterable[Achado]:
     if ctx.rcpj is None:
@@ -673,7 +679,7 @@ def rcpj_competente(ctx: ContextoValidacao) -> Iterable[Achado]:
             severidade=Semaforo.PENDENCIA,
             titulo="Exigências do RCPJ não cadastradas para este ato",
             mensagem=f"Não há exigências cadastradas no {ctx.rcpj.nome} para o ato "
-                     f"“{ctx.tipo_evento}”. O checklist sairá apenas com os documentos que o "
+                     f"“{_titulo_do_ato(ctx.tipo_evento)}”. O checklist sairá apenas com os documentos que o "
                      f"sistema sabe serem produzidos pelo próprio ato.",
         )
         return

@@ -175,3 +175,11 @@ def test_semaforo_e_o_pior_achado(montar_contexto):
     r = validar(ctx)
     assert r.semaforo is Semaforo.PENDENCIA  # documentos ainda não reunidos
     assert r.pode_gerar_documentos is True
+
+
+def test_aviso_nunca_mostra_o_codigo_interno_do_ato():
+    """'o ato “REELEICAO_DIRETORIA”' apareceu na tela de validação."""
+    from app.engines.validacao.checks import _titulo_do_ato
+
+    assert _titulo_do_ato("REELEICAO_DIRETORIA") == "Reeleição de diretoria"
+    assert "_" not in _titulo_do_ato("ATO_QUE_NAO_EXISTE")
