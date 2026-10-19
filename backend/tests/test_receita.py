@@ -149,3 +149,20 @@ class TestConsulta:
         )
         dados = receita.consultar("33.683.111/0002-80", cliente=cliente)
         assert dados.razao_social == "FUNDACAO EXEMPLO"
+
+
+def test_sem_tempo_para_a_segunda_fonte_responde_indisponivel(monkeypatch):
+    """Duas fontes lentas passavam de 20 segundos, e quem respondia à tela era
+    o intermediário do Render, com um 502 sem explicação."""
+    instantes = iter([0.0, 0.0, 11.5])  # início, 1ª fonte, 2ª fonte
+    monkeypatch.setattr(receita, "_relogio", lambda: next(instantes))
+    chamadas = []
+
+    def responder(requisicao):
+        chamadas.append(str(requisicao.url))
+        return httpx.Response(503)
+
+    cliente = httpx.Client(transport=httpx.MockTransport(responder))
+    with pytest.raises(receita.ServicoIndisponivel):
+        receita.consultar("33.683.111/0002-80", cliente=cliente)
+    assert len(chamadas) == 1, "a segunda fonte não deveria ser tentada sem tempo"

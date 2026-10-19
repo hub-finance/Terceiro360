@@ -24,6 +24,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import re
+import time
 import unicodedata
 
 import httpx
@@ -31,7 +32,16 @@ import httpx
 from app.core.enums import TipoEntidade
 from app.core.tempo import agora
 
-TEMPO_LIMITE = httpx.Timeout(8.0, connect=4.0)
+TEMPO_LIMITE = httpx.Timeout(6.0, connect=3.0)
+
+# Tempo total da consulta, somando as duas fontes. Quem espera é uma pessoa
+# diante de um botão, e entre ela e esta função ainda há o painel e o
+# intermediário do Render, que desiste de esperar antes do que parece. Duas
+# fontes lentas, cada uma no seu limite, passavam de 20 segundos — e a tela
+# recebia um "502" do intermediário, sem aviso nenhum nosso.
+ORCAMENTO_SEGUNDOS = 12.0
+
+_relogio = time.monotonic
 
 
 class ErroConsulta(Exception):
@@ -247,9 +257,19 @@ def consultar(cnpj: str, cliente: httpx.Client | None = None) -> DadosReceita:
     cliente = cliente or httpx.Client(timeout=TEMPO_LIMITE, follow_redirects=True)
     try:
         indisponivel = 0
+        inicio = _relogio()
         for modelo, interpretar in FONTES:
+            restante = ORCAMENTO_SEGUNDOS - (_relogio() - inicio)
+            if restante < 1.0:
+                # Sem tempo para mais uma fonte: melhor dizer "indisponível"
+                # agora do que deixar a tela sem resposta nenhuma.
+                indisponivel += 1
+                break
             try:
-                resposta = cliente.get(modelo.format(cnpj=numero))
+                resposta = cliente.get(
+                    modelo.format(cnpj=numero),
+                    timeout=httpx.Timeout(min(6.0, restante), connect=min(3.0, restante)),
+                )
             except httpx.HTTPError:
                 indisponivel += 1
                 continue

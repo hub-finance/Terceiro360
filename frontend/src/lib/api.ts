@@ -88,6 +88,12 @@ async function mensagemDeErro(resposta: Response): Promise<string> {
       return campo ? `${campo}: ${primeiro.msg ?? "valor inválido"}` : String(primeiro.msg);
     }
   }
+  // 502, 503 e 504 sem corpo não vêm da nossa API: vêm do intermediário do
+  // Render, quando o servidor está acordando, reiniciando ou demorou demais.
+  // "A API respondeu 502" não diz a ninguém o que fazer.
+  if ([502, 503, 504].includes(resposta.status)) {
+    return "O servidor não respondeu agora — ele pode estar iniciando. Tente de novo em alguns segundos.";
+  }
   return `A API respondeu ${resposta.status}.`;
 }
 
