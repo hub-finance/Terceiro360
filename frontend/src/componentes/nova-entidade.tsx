@@ -9,7 +9,7 @@
  * lacuna na hora de gerar documento, que é onde a falta realmente importa.
  */
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Aviso, Botao, Campo } from "@/componentes/base";
 import { type DadosReceita, consultarCnpj, criarEntidade } from "@/lib/acoes";
@@ -44,13 +44,16 @@ export function FormularioNovaEntidade() {
   const [receita, definirReceita] = useState<DadosReceita | null>(null);
   const [consultando, definirConsultando] = useState(false);
   const [avisoReceita, definirAvisoReceita] = useState<string | null>(null);
+  // Referência direta ao campo, e não busca por seletor de texto: o seletor
+  // anterior foi corrompido por uma edição em massa e o botão quebrava na
+  // primeira linha, sem nenhum sinal na tela. Uma referência não tem como
+  // apontar para o campo errado sem o compilador perceber.
+  const campoCnpj = useRef<HTMLInputElement>(null);
 
   const notaDoTipo = TIPOS.find((t) => t.valor === tipo)?.nota;
 
   async function buscarNaReceita() {
-    const cnpj = (
-      document.querySelector<HTMLInputElement>('input[name="cnpj" defaultValue={valores.cnpj ?? ""}]')?.value ?? ""
-    ).trim();
+    const cnpj = (campoCnpj.current?.value ?? "").trim();
     if (!cnpj) {
       definirAvisoReceita("Informe o CNPJ para consultar.");
       return;
@@ -181,6 +184,7 @@ export function FormularioNovaEntidade() {
             </label>
             <div className="flex gap-2">
               <input
+                ref={campoCnpj}
                 id="cnpj"
                 name="cnpj"
                 defaultValue={valores.cnpj ?? ""}
