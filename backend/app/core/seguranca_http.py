@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
+from app.core.security import ler_token
 
 # Um navegador só respeita o que o servidor manda. Cada cabeçalho abaixo fecha
 # uma porta concreta:
@@ -80,6 +81,18 @@ class FreioDeRequisicoes(BaseHTTPMiddleware):
 
     O login tem freio próprio, mais estreito e persistido em banco
     (`app/api/rotas/auth.py`), porque ali a tentativa precisa deixar rastro.
+
+    **A quem a cota pertence.** No Render, todo pedido passa por um
+    intermediário, e o painel chama a API em nome de todos os usuários. Contar
+    só por endereço punha o sistema inteiro numa cota só: um robô varrendo o
+    endereço público da API — o que acontece todo dia com qualquer endereço
+    público — esgotava os 300 pedidos e ninguém mais conseguia entrar. Foi o
+    que aconteceu em produção, sem nenhuma tentativa de login chegar ao banco.
+
+    Agora: pedido com token válido conta na cota do *usuário*; sem token, na do
+    endereço de origem (que o servidor lê do cabeçalho do intermediário — ver
+    `iniciar.sh`). Um usuário não esgota a cota de outro, e um robô sem token
+    não esgota a de ninguém que esteja logado.
     """
 
     def __init__(self, app, limite: int = 300, janela_segundos: int = 60):
@@ -92,7 +105,7 @@ class FreioDeRequisicoes(BaseHTTPMiddleware):
         if request.method == "OPTIONS" or request.url.path in ("/saude", "/"):
             return await call_next(request)
 
-        chave = request.client.host if request.client else "desconhecido"
+        chave = self._chave(request)
         agora = time.monotonic()
         batidas = self._batidas[chave]
         while batidas and agora - batidas[0] > self.janela:
@@ -101,7 +114,7 @@ class FreioDeRequisicoes(BaseHTTPMiddleware):
         if len(batidas) >= self.limite:
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={"detail": "Muitas requisições. Aguarde um instante."},
+                content={"detail": "Muitos pedidos em pouco tempo. Aguarde um minuto e tente de novo."},
                 headers={"Retry-After": str(self.janela)},
             )
 
@@ -113,3 +126,14 @@ class FreioDeRequisicoes(BaseHTTPMiddleware):
                 del self._batidas[ip]
 
         return await call_next(request)
+
+    @staticmethod
+    def _chave(request: Request) -> str:
+        autorizacao = request.headers.get("authorization", "")
+        if autorizacao.lower().startswith("bearer "):
+            # Confere a assinatura: sem isso, um token inventado com um
+            # "sub" diferente a cada pedido seria uma cota nova a cada pedido.
+            dados = ler_token(autorizacao[7:].strip())
+            if dados and dados.get("sub"):
+                return f"usuario:{dados['sub']}"
+        return f"ip:{request.client.host if request.client else 'desconhecido'}"

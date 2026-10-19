@@ -30,4 +30,12 @@ case "${T360_CARGA_INICIAL}" in
 esac
 
 echo "==> Subindo a API na porta ${PORT:-8000}"
-exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
+# --forwarded-allow-ips: no Render todo pedido chega pelo intermediário dele,
+# e o servidor só lê o endereço de origem (X-Forwarded-For) de quem estiver
+# nesta lista. O padrão é só 127.0.0.1 — então a API via o endereço do
+# intermediário em todos os pedidos, e o freio por endereço virava uma cota
+# única para o sistema inteiro. "*" é seguro aqui porque a API só é alcançável
+# através do intermediário do Render; quem forjar o cabeçalho consegue, no
+# máximo, contar numa cota de endereço diferente — nunca esgotar a de outro.
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" \
+  --proxy-headers --forwarded-allow-ips "*"

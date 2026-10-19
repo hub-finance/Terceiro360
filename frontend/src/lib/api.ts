@@ -4,9 +4,30 @@
  * ao navegador. Erros da API viram `ErroApi`, com a mensagem que o backend
  * escreveu — que é redigida para o usuário final, não para o log.
  */
+import { headers as cabecalhosDoPedido } from "next/headers";
+
 import { BASE_API as BASE } from "@/lib/endereco";
 import { tokenDaSessao } from "@/lib/sessao";
 
+/** O endereço de quem está no navegador, para repassar à API.
+ *
+ * Quem chama a API é este servidor, em nome de todos os usuários. Sem repassar
+ * a origem, a API veria um endereço só — o do painel — e o freio de senha
+ * errada contaria as tentativas de todos juntos: cinco erros de qualquer
+ * pessoa travariam o login de todas. O intermediário do Render põe o endereço
+ * real no início de X-Forwarded-For.
+ */
+async function origemDoNavegador(): Promise<Record<string, string>> {
+  try {
+    const cabecalhos = await cabecalhosDoPedido();
+    const encaminhado = cabecalhos.get("x-forwarded-for")?.split(",")[0]?.trim();
+    const endereco = encaminhado || cabecalhos.get("x-real-ip")?.trim();
+    return endereco ? { "X-Forwarded-For": endereco } : {};
+  } catch {
+    // Fora de um pedido (não deveria acontecer aqui): segue sem a origem.
+    return {};
+  }
+}
 
 export class ErroApi extends Error {
   constructor(
@@ -37,6 +58,7 @@ export async function chamarApi<T>(caminho: string, opcoes: Opcoes = {}): Promis
     ...resto,
     headers: {
       "Content-Type": "application/json",
+      ...(await origemDoNavegador()),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
@@ -97,7 +119,10 @@ export async function autenticar(
 
   const resposta = await fetch(`${BASE}/api/v1/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      ...(await origemDoNavegador()),
+    },
     body: corpo,
     cache: "no-store",
   });
@@ -107,7 +132,11 @@ export async function autenticar(
     // o que permite à tela pedir o código em vez de dizer "senha inválida".
     if (resposta.headers.get("x-mfa-exigido") === "1") throw new SegundoFatorExigido();
     if (resposta.status === 429) {
-      throw new ErroApi(429, "Muitas tentativas. Aguarde 15 minutos e tente de novo.");
+      // A mensagem da API, e não uma frase fixa. São duas causas diferentes —
+      // senhas erradas demais, ou pedidos demais por minuto — com esperas
+      // diferentes; dizer "15 minutos" para as duas mandou esperar à toa
+      // quem só precisava de um minuto.
+      throw new ErroApi(429, await mensagemDeErro(resposta));
     }
     throw new ErroApi(
       resposta.status,
